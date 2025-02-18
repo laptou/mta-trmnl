@@ -39,7 +39,7 @@ if (!line) {
                                     <ul class="space-y-2">
                                         {arrivals.map(arrival => (
                                             <li>
-                                                {arrival.arrivalTime} - Trip {arrival.tripId}
+                                                {arrival.arrivalTime.toString()} - Trip {arrival.tripId}
                                             </li>
                                         ))}
                                     </ul>

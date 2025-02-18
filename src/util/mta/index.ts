@@ -1,17 +1,18 @@
 import { parse } from "csv-parse/sync";
 import JSZip from "jszip";
+import { Temporal } from '@js-temporal/polyfill';
 
 interface CalendarEntry {
-	service_id: string;
-	monday: boolean;
-	tuesday: boolean;
-	wednesday: boolean;
-	thursday: boolean;
-	friday: boolean;
-	saturday: boolean;
-	sunday: boolean;
-	start_date: string;
-	end_date: string;
+    service_id: string;
+    monday: boolean;
+    tuesday: boolean;
+    wednesday: boolean;
+    thursday: boolean;
+    friday: boolean;
+    saturday: boolean;
+    sunday: boolean;
+    start_date: Temporal.PlainDate;
+    end_date: Temporal.PlainDate;
 }
 
 interface CalendarDateEntry {
@@ -33,11 +34,11 @@ interface Route {
 }
 
 interface StopTime {
-	trip_id: string;
-	stop_id: string;
-	arrival_time: string;
-	departure_time: string;
-	stop_sequence: number;
+    trip_id: string;
+    stop_id: string;
+    arrival_time: Temporal.PlainTime;
+    departure_time: Temporal.PlainTime;
+    stop_sequence: number;
 }
 
 interface Stop {
@@ -69,8 +70,8 @@ export interface Station {
 export interface TrainArrival {
     line: string;
     tripId: string;
-    arrivalTime: string;
-    departureTime: string;
+    arrivalTime: Temporal.PlainTime;
+    departureTime: Temporal.PlainTime;
     stopSequence: number;
 }
 
@@ -109,15 +110,29 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
         await fetch(zipPath).then((res) => res.blob()),
     );
 
-    const [calendar, calendarDates, routes, stopTimes, stops, transfers] =
+    const [rawCalendar, calendarDates, routes, rawStopTimes, stops, transfers] =
         await Promise.all([
-            readCsvFromZip<CalendarEntry>(zip, "calendar.txt"),
+            readCsvFromZip<Omit<CalendarEntry, 'start_date' | 'end_date'> & { start_date: string, end_date: string }>(zip, "calendar.txt"),
             readCsvFromZip<CalendarDateEntry>(zip, "calendar_dates.txt"),
             readCsvFromZip<Route>(zip, "routes.txt"),
-            readCsvFromZip<StopTime>(zip, "stop_times.txt"),
+            readCsvFromZip<Omit<StopTime, 'arrival_time' | 'departure_time'> & { arrival_time: string, departure_time: string }>(zip, "stop_times.txt"),
             readCsvFromZip<Stop>(zip, "stops.txt"),
             readCsvFromZip<Transfer>(zip, "transfers.txt"),
         ]);
+
+    // Convert date strings to Temporal.PlainDate
+    const calendar = rawCalendar.map(entry => ({
+        ...entry,
+        start_date: Temporal.PlainDate.from(entry.start_date),
+        end_date: Temporal.PlainDate.from(entry.end_date)
+    }));
+
+    // Convert time strings to Temporal.PlainTime
+    const stopTimes = rawStopTimes.map(entry => ({
+        ...entry,
+        arrival_time: Temporal.PlainTime.from(entry.arrival_time),
+        departure_time: Temporal.PlainTime.from(entry.departure_time)
+    }));
 
     // Build derived data structures
     const stations = new Map<string, Station>();
@@ -183,14 +198,11 @@ export function getStationsForLine(state: MtaState, lineId: string): Station[] {
 }
 
 export function getUpcomingArrivals(state: MtaState, stationId: string, limit = 10): TrainArrival[] {
-    const now = new Date();
-    const currentTime = now.getHours().toString().padStart(2, '0') + ':' + 
-                       now.getMinutes().toString().padStart(2, '0') + ':' + 
-                       now.getSeconds().toString().padStart(2, '0');
+    const now = Temporal.Now.plainTimeISO();
 
     return state.stopTimes
-        .filter(st => st.stop_id === stationId && st.arrival_time > currentTime)
-        .sort((a, b) => a.arrival_time.localeCompare(b.arrival_time))
+        .filter(st => st.stop_id === stationId && Temporal.PlainTime.compare(st.arrival_time, now) > 0)
+        .sort((a, b) => Temporal.PlainTime.compare(a.arrival_time, b.arrival_time))
         .slice(0, limit)
         .map(st => ({
             line: st.trip_id.split('.')[0], // Assuming trip_id format is "line.trip"
