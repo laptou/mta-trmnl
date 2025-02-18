@@ -1,6 +1,14 @@
 import { parse } from "csv-parse/sync";
-import JSZip from "jszip";
 import { Temporal } from "temporal-polyfill";
+import yauzl from "yauzl";
+
+const zipFromBuffer = (buf: Buffer, opts: yauzl.Options) =>
+	new Promise<yauzl.ZipFile>((resolve, reject) =>
+		yauzl.fromBuffer(buf, opts, (err, archive) => {
+			if (err) reject(err);
+			resolve(archive);
+		}),
+	);
 
 interface CalendarEntry {
 	service_id: string;
@@ -89,17 +97,34 @@ export interface MtaState {
 	lineToStations: Map<string, Set<string>>;
 }
 
-async function readCsvFromZip<T>(zip: JSZip, filename: string): Promise<T[]> {
-	const file = await zip.file(filename)?.async("string");
+async function readZipEntries(
+	zip: yauzl.ZipFile,
+): Promise<Map<string, string>> {
+	return new Promise((resolve, reject) => {
+		const entries = new Map<string, string>();
 
-	if (!file) {
-		throw new Error(`File ${filename} not found in zip`);
-	}
+		zip.on("error", reject);
 
-	return parse(file, {
-		columns: true,
-		cast: true,
-		skipEmptyLines: true,
+		zip.on("entry", (entry) => {
+			zip.openReadStream(entry, (err, stream) => {
+				if (err) {
+					reject(err);
+					return;
+				}
+
+				let data = "";
+				stream.on("data", (chunk) => (data += chunk));
+				stream.on("end", () => {
+					entries.set(entry.fileName, data);
+					zip.readEntry();
+				});
+				stream.on("error", reject);
+			});
+		});
+
+		zip.on("end", () => resolve(entries));
+
+		zip.readEntry();
 	});
 }
 
@@ -107,29 +132,39 @@ export const MTA_SUPPLEMENTED_GTFS_STATIC_URL =
 	"https://rrgtfsfeeds.s3.amazonaws.com/gtfs_supplemented.zip";
 
 export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
-	const zip = await JSZip.loadAsync(
-		await fetch(zipPath).then((res) => res.blob()),
-	);
+	const gtfsData = await fetch(zipPath).then((res) => res.arrayBuffer());
+	const gtfsArchive = await zipFromBuffer(Buffer.from(gtfsData), {
+		lazyEntries: true,
+	});
+	const entries = await readZipEntries(gtfsArchive);
 
-	const [rawCalendar, calendarDates, routes, rawStopTimes, stops, transfers] =
-		await Promise.all([
-			readCsvFromZip<
-				Omit<CalendarEntry, "start_date" | "end_date"> & {
-					start_date: string;
-					end_date: string;
-				}
-			>(zip, "calendar.txt"),
-			readCsvFromZip<CalendarDateEntry>(zip, "calendar_dates.txt"),
-			readCsvFromZip<Route>(zip, "routes.txt"),
-			readCsvFromZip<
-				Omit<StopTime, "arrival_time" | "departure_time"> & {
-					arrival_time: string;
-					departure_time: string;
-				}
-			>(zip, "stop_times.txt"),
-			readCsvFromZip<Stop>(zip, "stops.txt"),
-			readCsvFromZip<Transfer>(zip, "transfers.txt"),
-		]);
+	function parseCsvFile<T>(filename: string): T[] {
+		const data = entries.get(filename);
+		if (!data) throw new Error(`File ${filename} not found in zip`);
+		return parse(data, {
+			columns: true,
+			cast: true,
+			skipEmptyLines: true,
+		});
+	}
+
+	const rawCalendar = parseCsvFile<
+		Omit<CalendarEntry, "start_date" | "end_date"> & {
+			start_date: string;
+			end_date: string;
+		}
+	>("calendar.txt");
+
+	const calendarDates = parseCsvFile<CalendarDateEntry>("calendar_dates.txt");
+	const routes = parseCsvFile<Route>("routes.txt");
+	const rawStopTimes = parseCsvFile<
+		Omit<StopTime, "arrival_time" | "departure_time"> & {
+			arrival_time: string;
+			departure_time: string;
+		}
+	>("stop_times.txt");
+	const stops = parseCsvFile<Stop>("stops.txt");
+	const transfers = parseCsvFile<Transfer>("transfers.txt");
 
 	// Convert date strings to Temporal.PlainDate
 	const calendar = rawCalendar.map((entry) => ({
