@@ -10,5 +10,8 @@
   },
   "dependencies": {
     "astro": "^5.3.0"
+  },
+  "devDependencies": {
+    "@protobuf-ts/plugin": "^2.9.4"
   }
 }
