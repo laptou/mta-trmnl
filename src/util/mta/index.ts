@@ -118,6 +118,7 @@ export interface MtaState {
 	// Derived data
 	stations: Map<string, Station>;
 	lineToStations: Map<string, Set<string>>;
+	tripToService: Map<string, string>;
 }
 
 async function readZipEntries(
@@ -338,6 +339,12 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 	}
 	performance.mark("route-table-end");
 
+	// Build trip to service mapping
+	const tripToService = new Map<string, string>();
+	for (const trip of parseCsvFile<{trip_id: string, service_id: string}>("trips.txt")) {
+		tripToService.set(trip.trip_id, trip.service_id);
+	}
+
 	performance.mark("load-end");
 	console.log(
 		performance.measure(
@@ -361,6 +368,7 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 		lastUpdated: new Date(),
 		stations,
 		lineToStations,
+		tripToService,
 	};
 }
 
@@ -373,6 +381,47 @@ export function getStationsForLine(state: MtaState, lineId: string): Station[] {
 	return Array.from(stationIds)
 		.map((id) => state.stations.get(id))
 		.filter((station): station is Station => station !== undefined);
+}
+
+function isServiceActiveToday(
+	state: MtaState,
+	serviceId: string,
+): boolean {
+	const today = Temporal.Now.plainDateISO();
+	const dayOfWeek = today.dayOfWeek;
+
+	// Check calendar exceptions first
+	const exception = state.calendarDates.find(
+		(date) => 
+			date.service_id === serviceId && 
+			date.date === today.toString().replace(/-/g, '')
+	);
+	
+	if (exception) {
+		return exception.exception_type === 1; // 1 means service added, 2 means removed
+	}
+
+	// Then check regular calendar
+	const service = state.calendar.find((cal) => cal.service_id === serviceId);
+	if (!service) return false;
+
+	// Check if today is within service date range
+	if (Temporal.PlainDate.compare(today, service.start_date) < 0 ||
+		Temporal.PlainDate.compare(today, service.end_date) > 0) {
+		return false;
+	}
+
+	// Check if service runs on this day of week
+	switch (dayOfWeek) {
+		case 1: return service.monday;
+		case 2: return service.tuesday;
+		case 3: return service.wednesday;
+		case 4: return service.thursday;
+		case 5: return service.friday;
+		case 6: return service.saturday;
+		case 7: return service.sunday;
+		default: return false;
+	}
 }
 
 export function getUpcomingArrivals(
@@ -390,16 +439,28 @@ export function getUpcomingArrivals(
 
 	return state.stopTimes
 		.filter(
-			(st) =>
-				(stopId ? st.stop_id === stopId : st.stop_id.startsWith(stationId)) &&
-				Temporal.PlainTime.compare(
+			(st) => {
+				// Check if stop matches
+				if (!(stopId ? st.stop_id === stopId : st.stop_id.startsWith(stationId))) {
+					return false;
+				}
+
+				// Check if time is in the future
+				if (Temporal.PlainTime.compare(
 					{
 						hour: st.arrival_time[0],
 						minute: st.arrival_time[1],
 						second: st.arrival_time[2],
 					},
 					now,
-				) > 0,
+				) <= 0) {
+					return false;
+				}
+
+				// Check if service is active today
+				const serviceId = state.tripToService.get(st.trip_id);
+				return serviceId ? isServiceActiveToday(state, serviceId) : false;
+			}
 		)
 		.sort((a, b) =>
 			Temporal.PlainTime.compare(
