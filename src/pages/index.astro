@@ -1,11 +1,23 @@
 ---
-import Welcome from "../components/Welcome.astro";
 import Layout from "../layouts/Layout.astro";
+import { loadMtaBaselineState, getAllLines, MTA_SUPPLEMENTED_GTFS_STATIC_URL } from "../util/mta";
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+const state = await loadMtaBaselineState(MTA_SUPPLEMENTED_GTFS_STATIC_URL);
+const lines = getAllLines(state);
 ---
 
 <Layout>
-	<Welcome />
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold mb-8">MTA Train Lines</h1>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {lines.map(line => (
+                <a href={`/line/${line.route_id}`} 
+                   class="p-4 border rounded-lg hover:shadow-lg transition-shadow"
+                   style={`background-color: #${line.route_color || 'ffffff'}; color: #${line.route_text_color || '000000'}`}>
+                    <h2 class="text-2xl font-bold">{line.route_short_name}</h2>
+                    <p>{line.route_long_name}</p>
+                </a>
+            ))}
+        </div>
+    </div>
 </Layout>

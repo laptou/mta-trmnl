@@ -1,0 +1,56 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { loadMtaBaselineState, getStationsForLine, getUpcomingArrivals, MTA_SUPPLEMENTED_GTFS_STATIC_URL } from "../../util/mta";
+
+const { id } = Astro.params;
+const state = await loadMtaBaselineState(MTA_SUPPLEMENTED_GTFS_STATIC_URL);
+const stations = getStationsForLine(state, id!);
+const line = state.routes.find(r => r.route_id === id);
+
+if (!line) {
+    return Astro.redirect('/404');
+}
+---
+
+<Layout>
+    <div class="container mx-auto px-4 py-8">
+        <div class="mb-8">
+            <a href="/" class="text-blue-500 hover:underline">&larr; Back to Lines</a>
+        </div>
+        
+        <h1 class="text-4xl font-bold mb-8" 
+            style={`color: #${line.route_color || '000000'}`}>
+            Line {line.route_short_name}
+        </h1>
+        
+        <div class="grid gap-8">
+            {stations.map(station => {
+                const arrivals = getUpcomingArrivals(state, station.id);
+                return (
+                    <div class="border rounded-lg p-6">
+                        <h2 class="text-2xl font-bold mb-4">{station.name}</h2>
+                        <div class="grid gap-4">
+                            <div class="text-sm text-gray-600">
+                                Location: {station.location.lat}, {station.location.lon}
+                            </div>
+                            <div>
+                                <h3 class="font-semibold mb-2">Upcoming Arrivals</h3>
+                                {arrivals.length > 0 ? (
+                                    <ul class="space-y-2">
+                                        {arrivals.map(arrival => (
+                                            <li>
+                                                {arrival.arrivalTime} - Trip {arrival.tripId}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p class="text-gray-500">No upcoming arrivals</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    </div>
+</Layout>
