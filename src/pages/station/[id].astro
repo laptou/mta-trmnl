@@ -5,7 +5,8 @@ import { loadMtaBaselineState, getStation, getUpcomingArrivals, MTA_SUPPLEMENTED
 const { id } = Astro.params;
 const state = await loadMtaBaselineState(MTA_SUPPLEMENTED_GTFS_STATIC_URL);
 const station = getStation(state, id!);
-const arrivals = station ? getUpcomingArrivals(state, station.id) : [];
+const northArrivals = station ? getUpcomingArrivals(state, station.id, 'north') : [];
+const southArrivals = station ? getUpcomingArrivals(state, station.id, 'south') : [];
 
 if (!station) {
     return Astro.redirect('/404');
@@ -47,42 +48,82 @@ if (!station) {
                 </div>
             </div>
 
-            <div class="border rounded-lg p-6">
-                <h2 class="text-2xl font-bold mb-4">Upcoming Arrivals</h2>
-                {arrivals.length > 0 ? (
-                    <table class="w-full">
-                        <thead>
-                            <tr class="text-left">
-                                <th class="pb-2">Line</th>
-                                <th class="pb-2">Arrival</th>
-                                <th class="pb-2">Departure</th>
-                                <th class="pb-2">Trip ID</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {arrivals.map(arrival => {
-                                const line = state.routes.find(r => r.route_id === arrival.line);
-                                return (
-                                    <tr class="border-t">
-                                        <td class="py-2">
-                                            <span
-                                                class="px-2 py-1 rounded"
-                                                style={`background-color: #${line?.route_color || 'ffffff'}; color: #${line?.route_text_color || '000000'}`}
-                                            >
-                                                {line?.route_short_name}
-                                            </span>
-                                        </td>
-                                        <td class="py-2">{arrival.arrivalTime.toString()}</td>
-                                        <td class="py-2">{arrival.departureTime.toString()}</td>
-                                        <td class="py-2">{arrival.tripId}</td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                ) : (
-                    <p class="text-gray-500">No upcoming arrivals</p>
-                )}
+            <div class="grid grid-cols-2 gap-8">
+                <div class="border rounded-lg p-6">
+                    <h2 class="text-2xl font-bold mb-4">Northbound Arrivals</h2>
+                    {northArrivals.length > 0 ? (
+                        <table class="w-full">
+                            <thead>
+                                <tr class="text-left">
+                                    <th class="pb-2">Line</th>
+                                    <th class="pb-2">Arrival</th>
+                                    <th class="pb-2">Departure</th>
+                                    <th class="pb-2">Trip ID</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {northArrivals.map(arrival => {
+                                    const line = state.routes.find(r => r.route_id === arrival.line);
+                                    return (
+                                        <tr class="border-t">
+                                            <td class="py-2">
+                                                <span
+                                                    class="px-2 py-1 rounded"
+                                                    style={`background-color: #${line?.route_color || 'ffffff'}; color: #${line?.route_text_color || '000000'}`}
+                                                >
+                                                    {line?.route_short_name}
+                                                </span>
+                                            </td>
+                                            <td class="py-2">{arrival.arrivalTime.toString()}</td>
+                                            <td class="py-2">{arrival.departureTime.toString()}</td>
+                                            <td class="py-2">{arrival.tripId}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <p class="text-gray-500">No upcoming arrivals</p>
+                    )}
+                </div>
+
+                <div class="border rounded-lg p-6">
+                    <h2 class="text-2xl font-bold mb-4">Southbound Arrivals</h2>
+                    {southArrivals.length > 0 ? (
+                        <table class="w-full">
+                            <thead>
+                                <tr class="text-left">
+                                    <th class="pb-2">Line</th>
+                                    <th class="pb-2">Arrival</th>
+                                    <th class="pb-2">Departure</th>
+                                    <th class="pb-2">Trip ID</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {southArrivals.map(arrival => {
+                                    const line = state.routes.find(r => r.route_id === arrival.line);
+                                    return (
+                                        <tr class="border-t">
+                                            <td class="py-2">
+                                                <span
+                                                    class="px-2 py-1 rounded"
+                                                    style={`background-color: #${line?.route_color || 'ffffff'}; color: #${line?.route_text_color || '000000'}`}
+                                                >
+                                                    {line?.route_short_name}
+                                                </span>
+                                            </td>
+                                            <td class="py-2">{arrival.arrivalTime.toString()}</td>
+                                            <td class="py-2">{arrival.departureTime.toString()}</td>
+                                            <td class="py-2">{arrival.tripId}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <p class="text-gray-500">No upcoming arrivals</p>
+                    )}
+                </div>
             </div>
         </div>
     </div>

@@ -92,6 +92,10 @@ export interface Station {
 		lon: number;
 	};
 	lines: string[];
+	directions: {
+		north?: string;
+		south?: string;
+	};
 }
 
 export interface TrainArrival {
@@ -276,20 +280,37 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 
 	performance.mark("station-table-start");
 
-	// Process stops into stations
+	// Process stops into stations; we map the child stops to the same station
 	for (const stop of stops) {
-		// if (!stop.parent_station) {
-		// Only process parent stations
-		stations.set(stop.stop_id, {
-			id: stop.stop_id,
-			name: stop.stop_name,
-			location: {
-				lat: stop.stop_lat,
-				lon: stop.stop_lon,
-			},
-			lines: [],
-		});
-		// }
+		const baseStationId = stop.parent_station;
+		const direction = stop.stop_id.endsWith("N")
+			? "north"
+			: stop.stop_id.endsWith("S")
+				? "south"
+				: null;
+
+		let station = baseStationId && stations.get(baseStationId);
+
+		if (!station) {
+			station = {
+				id: stop.stop_id,
+				name: stop.stop_name,
+				location: {
+					lat: stop.stop_lat,
+					lon: stop.stop_lon,
+				},
+				lines: [],
+				directions: {},
+			};
+
+			stations.set(stop.stop_id, station);
+		} else {
+			stations.set(stop.stop_id, station);
+		}
+
+		if (direction) {
+			station.directions[direction] = stop.stop_id;
+		}
 	}
 	performance.mark("station-table-end");
 
@@ -357,14 +378,20 @@ export function getStationsForLine(state: MtaState, lineId: string): Station[] {
 export function getUpcomingArrivals(
 	state: MtaState,
 	stationId: string,
+	direction?: "north" | "south",
 	limit = 10,
 ): TrainArrival[] {
 	const now = Temporal.Now.plainTimeISO();
+	const station = state.stations.get(stationId);
+	if (!station) return [];
+
+	const stopId = direction ? station.directions[direction] : undefined;
+	if (direction && !stopId) return [];
 
 	return state.stopTimes
 		.filter(
 			(st) =>
-				st.stop_id === stationId &&
+				(stopId ? st.stop_id === stopId : st.stop_id.startsWith(stationId)) &&
 				Temporal.PlainTime.compare(
 					{
 						hour: st.arrival_time[0],
@@ -393,15 +420,15 @@ export function getUpcomingArrivals(
 			line: st.trip_id.split(".")[0],
 			tripId: st.trip_id,
 			arrivalTime: Temporal.PlainTime.from({
-                hour: st.arrival_time[0],
-                minute: st.arrival_time[1],
-                second: st.arrival_time[2],
-            }),
+				hour: st.arrival_time[0],
+				minute: st.arrival_time[1],
+				second: st.arrival_time[2],
+			}),
 			departureTime: Temporal.PlainTime.from({
-                hour: st.departure_time[0],
-                minute: st.departure_time[1],
-                second: st.departure_time[2],
-            }),
+				hour: st.departure_time[0],
+				minute: st.departure_time[1],
+				second: st.departure_time[2],
+			}),
 			stopSequence: st.stop_sequence,
 		}));
 }
