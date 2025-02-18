@@ -91,7 +91,7 @@ export interface Station {
 		lat: number;
 		lon: number;
 	};
-	lines: string[];
+	lines: Set<string>;
 	directions: {
 		north?: string;
 		south?: string;
@@ -236,7 +236,6 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 		}
 	>("stop_times.txt");
 	const stops = parseCsvFile<Stop>("stops.txt");
-	const trips = parseCsvFile<Stop>("trips.txt");
 	const transfers = parseCsvFile<Transfer>("transfers.txt");
 	performance.mark("csv-parse-all-end");
 
@@ -317,7 +316,7 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 					lat: stop.stop_lat,
 					lon: stop.stop_lon,
 				},
-				lines: [],
+				lines: new Set(),
 				directions: {},
 			};
 
@@ -347,12 +346,14 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 
 	for (const trip of trips) {
 		tripToService.set(trip.trip_id, trip.service_id);
-		
+
 		let tripsForRoute = routeToTrips.get(trip.route_id);
+
 		if (!tripsForRoute) {
 			tripsForRoute = new Set();
 			routeToTrips.set(trip.route_id, tripsForRoute);
 		}
+
 		tripsForRoute.add(trip.trip_id);
 	}
 
@@ -363,20 +364,19 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 		const stationsForLine = new Set<string>();
 		lineToStations.set(route.route_id, stationsForLine);
 
-		const routeTrips = trips;
+		const routeTrips = routeToTrips.get(route.route_id);
 
 		// Find all stops for this route
 		const routeStopTimes = stopTimes.filter((st) =>
-			st.trip_id.startsWith(route.route_id),
+			routeTrips?.has(st.trip_id),
 		);
 
 		for (const st of routeStopTimes) {
 			const station = stations.get(st.stop_id);
+
 			if (station) {
 				stationsForLine.add(station.id);
-				if (!station.lines.includes(route.route_id)) {
-					station.lines.push(route.route_id);
-				}
+                station.lines.add(route.route_id);
 			}
 		}
 	}
@@ -480,34 +480,29 @@ export function getUpcomingArrivals(
 	const station = state.stations.get(stationId);
 	if (!station) return [];
 
-	const stopId = direction ? station.directions[direction] : undefined;
-	if (direction && !stopId) return [];
+	const stopId = direction ? station.directions[direction] : station.id;
 
 	return state.stopTimes
+		.filter((st) => st.stop_id === stopId)
 		.filter((st) => {
-			// Check if stop matches
-			if (
-				!(stopId ? st.stop_id === stopId : st.stop_id.startsWith(stationId))
-			) {
-				return false;
-			}
-
 			// Get trip info
-			const trip = state.trips.find(t => t.trip_id === st.trip_id);
-			if (!trip) return false;
+			const serviceId = state.tripToService.get(st.trip_id);
+			if (!serviceId) return false;
 
 			// Check if service is active today
-			if (!isServiceActiveToday(state, trip.service_id)) return false;
+			if (!isServiceActiveToday(state, serviceId)) return false;
 
 			// Check if time is in the future
-			return Temporal.PlainTime.compare(
-				{
-					hour: st.arrival_time[0],
-					minute: st.arrival_time[1],
-					second: st.arrival_time[2],
-				},
-				now,
-			) > 0;
+			return (
+				Temporal.PlainTime.compare(
+					{
+						hour: st.arrival_time[0],
+						minute: st.arrival_time[1],
+						second: st.arrival_time[2],
+					},
+					now,
+				) > 0
+			);
 		})
 		.sort((a, b) =>
 			Temporal.PlainTime.compare(
@@ -525,22 +520,24 @@ export function getUpcomingArrivals(
 		)
 		.slice(0, limit)
 		.map((st) => {
-			const trip = state.trips.find(t => t.trip_id === st.trip_id)!;
+			const trip = state.trips.find((t) => t.trip_id === st.trip_id)!;
+
 			return {
 				line: trip.route_id,
-			tripId: st.trip_id,
-			arrivalTime: Temporal.PlainTime.from({
-				hour: st.arrival_time[0],
-				minute: st.arrival_time[1],
-				second: st.arrival_time[2],
-			}),
-			departureTime: Temporal.PlainTime.from({
-				hour: st.departure_time[0],
-				minute: st.departure_time[1],
-				second: st.departure_time[2],
-			}),
-			stopSequence: st.stop_sequence,
-		}));
+				tripId: st.trip_id,
+				arrivalTime: Temporal.PlainTime.from({
+					hour: st.arrival_time[0],
+					minute: st.arrival_time[1],
+					second: st.arrival_time[2],
+				}),
+				departureTime: Temporal.PlainTime.from({
+					hour: st.departure_time[0],
+					minute: st.departure_time[1],
+					second: st.departure_time[2],
+				}),
+				stopSequence: st.stop_sequence,
+			};
+		});
 }
 
 export function getStation(

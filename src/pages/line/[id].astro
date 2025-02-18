@@ -35,8 +35,18 @@ if (!line) {
         <div class="grid gap-8">
             {
                 stations.map((station) => {
-                    const northTrains = getUpcomingArrivals(state, station.id, 'north', 3);
-                    const southTrains = getUpcomingArrivals(state, station.id, 'south', 3);
+                    const northTrains = getUpcomingArrivals(
+                        state,
+                        station.id,
+                        "north",
+                        3,
+                    );
+                    const southTrains = getUpcomingArrivals(
+                        state,
+                        station.id,
+                        "south",
+                        3,
+                    );
                     return (
                         <div class="border rounded-lg p-6">
                             <a href={`/station/${station.id}`} class="block">
@@ -45,27 +55,41 @@ if (!line) {
                                 </h2>
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
-                                        <h3 class="font-semibold mb-2">Northbound</h3>
+                                        <h3 class="font-semibold mb-2">
+                                            Northbound
+                                        </h3>
                                         {northTrains.length > 0 ? (
                                             <ul class="space-y-1">
                                                 {northTrains.map((arrival) => (
-                                                    <li>{arrival.departureTime.toString()}</li>
+                                                    <li>
+                                                        {arrival.line}{" "}
+                                                        {arrival.departureTime.toString()}
+                                                    </li>
                                                 ))}
                                             </ul>
                                         ) : (
-                                            <p class="text-gray-500">No upcoming trains</p>
+                                            <p class="text-gray-500">
+                                                No upcoming trains
+                                            </p>
                                         )}
                                     </div>
                                     <div>
-                                        <h3 class="font-semibold mb-2">Southbound</h3>
+                                        <h3 class="font-semibold mb-2">
+                                            Southbound
+                                        </h3>
                                         {southTrains.length > 0 ? (
                                             <ul class="space-y-1">
                                                 {southTrains.map((arrival) => (
-                                                    <li>{arrival.departureTime.toString()}</li>
+                                                    <li>
+                                                        {arrival.line}{" "}
+                                                        {arrival.departureTime.toString()}
+                                                    </li>
                                                 ))}
                                             </ul>
                                         ) : (
-                                            <p class="text-gray-500">No upcoming trains</p>
+                                            <p class="text-gray-500">
+                                                No upcoming trains
+                                            </p>
                                         )}
                                     </div>
                                 </div>
