@@ -80,7 +80,9 @@ async function readCsvFromZip<T>(zip: JSZip, filename: string): Promise<T[]> {
 	});
 }
 
-export async function loadMtaState(zipPath: string): Promise<MtaState> {
+export const MTA_SUPPLEMENTED_GTFS_STATIC_URL = "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_supplemented.zip";
+
+export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 	const zip = await JSZip.loadAsync(
 		await fetch(zipPath).then((res) => res.blob()),
 	);
