@@ -31,7 +31,7 @@ if (!station) {
                     <div>
                         <h3 class="font-semibold mb-2">Served by Lines:</h3>
                         <div class="flex gap-2">
-                            {station.lines.map(lineId => {
+                            {Array.from(station.lines).map(lineId => {
                                 const line = state.routes.find(r => r.route_id === lineId);
                                 return (
                                     <a
