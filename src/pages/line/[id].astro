@@ -3,7 +3,7 @@ import Layout from "../../layouts/Layout.astro";
 import {
     loadMtaBaselineState,
     getStationsForLine,
-    getUpcomingArrivals,
+    getNextTrainsByDirection,
     MTA_SUPPLEMENTED_GTFS_STATIC_URL,
 } from "../../util/mta";
 
@@ -35,37 +35,32 @@ if (!line) {
         <div class="grid gap-8">
             {
                 stations.map((station) => {
-                    const arrivals = getUpcomingArrivals(state, station.id);
+                    const nextTrains = getNextTrainsByDirection(state, station.id, id!);
                     return (
                         <div class="border rounded-lg p-6">
-                            <h2 class="text-2xl font-bold mb-4">
-                                {station.name}
-                            </h2>
-                            <div class="grid gap-4">
-                                <div class="text-sm text-gray-600">
-                                    Location: {station.location.lat},{" "}
-                                    {station.location.lon}
+                            <a href={`/station/${station.id}`} class="block">
+                                <h2 class="text-2xl font-bold mb-4 hover:text-blue-500">
+                                    {station.name}
+                                </h2>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <h3 class="font-semibold mb-2">Northbound</h3>
+                                        {nextTrains.north ? (
+                                            <div>{nextTrains.north.arrivalTime.toString()}</div>
+                                        ) : (
+                                            <p class="text-gray-500">No upcoming trains</p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <h3 class="font-semibold mb-2">Southbound</h3>
+                                        {nextTrains.south ? (
+                                            <div>{nextTrains.south.arrivalTime.toString()}</div>
+                                        ) : (
+                                            <p class="text-gray-500">No upcoming trains</p>
+                                        )}
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 class="font-semibold mb-2">
-                                        Upcoming Arrivals
-                                    </h3>
-                                    {arrivals.length > 0 ? (
-                                        <ul class="space-y-2">
-                                            {arrivals.map((arrival) => (
-                                                <li>
-                                                    {arrival.arrivalTime.toString()}{" "}
-                                                    - Trip {arrival.tripId}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    ) : (
-                                        <p class="text-gray-500">
-                                            No upcoming arrivals
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
+                            </a>
                         </div>
                     );
                 })
