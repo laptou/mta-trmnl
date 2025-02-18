@@ -2,6 +2,25 @@ import { parse } from "csv-parse/sync";
 import { Temporal } from "temporal-polyfill";
 import yauzl from "yauzl";
 
+function parseGtfsTime(time: string): Temporal.PlainTime {
+	const [hours, minutes, seconds] = time
+		.split(":")
+		.map((n) => Number.parseInt(n, 10));
+	// Handle times past midnight by wrapping back to 0-23 range
+	return Temporal.PlainTime.from({
+		hour: hours % 24,
+		minute: minutes,
+		second: seconds,
+	});
+}
+
+function parseGtfsDate(date: string): Temporal.PlainDate {
+	const year = Number.parseInt(date.slice(0, 4));
+	const month = Number.parseInt(date.slice(4, 6));
+	const day = Number.parseInt(date.slice(6, 8));
+	return Temporal.PlainDate.from({ year, month, day });
+}
+
 const zipFromBuffer = (buf: Buffer, opts: yauzl.Options) =>
 	new Promise<yauzl.ZipFile>((resolve, reject) =>
 		yauzl.fromBuffer(buf, opts, (err, archive) => {
@@ -105,19 +124,26 @@ async function readZipEntries(
 
 		zip.on("error", reject);
 
-		zip.on("entry", (entry) => {
+		zip.on("entry", (entry: yauzl.Entry) => {
+			if (entry.fileName === "shapes.txt") {
+				zip.readEntry();
+				return;
+			}
+
 			zip.openReadStream(entry, (err, stream) => {
 				if (err) {
 					reject(err);
 					return;
 				}
 
-				let data = "";
-				stream.on("data", (chunk) => (data += chunk));
+				const data: Buffer[] = [];
+				stream.on("data", (chunk) => data.push(Buffer.from(chunk)));
+
 				stream.on("end", () => {
-					entries.set(entry.fileName, data);
+					entries.set(entry.fileName, Buffer.concat(data).toString("utf-8"));
 					zip.readEntry();
 				});
+
 				stream.on("error", reject);
 			});
 		});
@@ -143,7 +169,7 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 		if (!data) throw new Error(`File ${filename} not found in zip`);
 		return parse(data, {
 			columns: true,
-			cast: true,
+			cast: false,
 			skipEmptyLines: true,
 		});
 	}
@@ -169,15 +195,15 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 	// Convert date strings to Temporal.PlainDate
 	const calendar = rawCalendar.map((entry) => ({
 		...entry,
-		start_date: Temporal.PlainDate.from(entry.start_date),
-		end_date: Temporal.PlainDate.from(entry.end_date),
+		start_date: parseGtfsDate(entry.start_date),
+		end_date: parseGtfsDate(entry.end_date),
 	}));
 
 	// Convert time strings to Temporal.PlainTime
 	const stopTimes = rawStopTimes.map((entry) => ({
 		...entry,
-		arrival_time: Temporal.PlainTime.from(entry.arrival_time),
-		departure_time: Temporal.PlainTime.from(entry.departure_time),
+		arrival_time: parseGtfsTime(entry.arrival_time),
+		departure_time: parseGtfsTime(entry.departure_time),
 	}));
 
 	// Build derived data structures
