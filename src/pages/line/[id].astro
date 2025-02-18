@@ -3,7 +3,7 @@ import Layout from "../../layouts/Layout.astro";
 import {
     loadMtaBaselineState,
     getStationsForLine,
-    getNextTrainsByDirection,
+    getUpcomingArrivals,
     MTA_SUPPLEMENTED_GTFS_STATIC_URL,
 } from "../../util/mta";
 
@@ -35,31 +35,18 @@ if (!line) {
         <div class="grid gap-8">
             {
                 stations.map((station) => {
-                    const nextTrains = getNextTrainsByDirection(state, station.id, id!);
+                    const nextTrains = getUpcomingArrivals(state, station.id);
                     return (
                         <div class="border rounded-lg p-6">
                             <a href={`/station/${station.id}`} class="block">
                                 <h2 class="text-2xl font-bold mb-4 hover:text-blue-500">
                                     {station.name}
                                 </h2>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <h3 class="font-semibold mb-2">Northbound</h3>
-                                        {nextTrains.north ? (
-                                            <div>{nextTrains.north.arrivalTime.toString()}</div>
-                                        ) : (
-                                            <p class="text-gray-500">No upcoming trains</p>
-                                        )}
-                                    </div>
-                                    <div>
-                                        <h3 class="font-semibold mb-2">Southbound</h3>
-                                        {nextTrains.south ? (
-                                            <div>{nextTrains.south.arrivalTime.toString()}</div>
-                                        ) : (
-                                            <p class="text-gray-500">No upcoming trains</p>
-                                        )}
-                                    </div>
-                                </div>
+                                <ul class="grid grid-cols-2 gap-4">
+                                    {nextTrains.map((arrival) => (
+                                        <li>{arrival.departureTime} ({arrival.line} {arrival.tripId})</li>
+                                    ))}
+                                </ul>
                             </a>
                         </div>
                     );

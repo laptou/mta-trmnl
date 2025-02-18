@@ -1,13 +1,16 @@
+import { bigint } from "astro:schema";
 import { parse } from "csv-parse/sync";
 import { Temporal } from "temporal-polyfill";
 import yauzl from "yauzl";
 
-function parseGtfsTime(time: string): Temporal.PlainTime {
+function parseGtfsTime(
+	time: string,
+): [hours: number, minutes: number, seconds: number] {
 	const hours = Number.parseInt(time.slice(0, 2), 10);
 	const minutes = Number.parseInt(time.slice(3, 5), 10);
 	const seconds = Number.parseInt(time.slice(6, 8), 10);
 	// Handle times past midnight by wrapping back to 0-23 range
-	return new Temporal.PlainTime(hours % 24, minutes, seconds);
+	return [hours % 24, minutes, seconds];
 }
 
 function parseGtfsDate(date: string): Temporal.PlainDate {
@@ -59,8 +62,9 @@ interface Route {
 interface StopTime {
 	trip_id: string;
 	stop_id: string;
-	arrival_time: Temporal.PlainTime;
-	departure_time: Temporal.PlainTime;
+	// would be nice to parse to Temporal.PlainTime, but it's too slow
+	arrival_time: [hours: number, minutes: number, seconds: number];
+	departure_time: [hours: number, minutes: number, seconds: number];
 	stop_sequence: number;
 }
 
@@ -275,16 +279,16 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 	// Process stops into stations
 	for (const stop of stops) {
 		// if (!stop.parent_station) {
-			// Only process parent stations
-			stations.set(stop.stop_id, {
-				id: stop.stop_id,
-				name: stop.stop_name,
-				location: {
-					lat: stop.stop_lat,
-					lon: stop.stop_lon,
-				},
-				lines: [],
-			});
+		// Only process parent stations
+		stations.set(stop.stop_id, {
+			id: stop.stop_id,
+			name: stop.stop_name,
+			location: {
+				lat: stop.stop_lat,
+				lon: stop.stop_lon,
+			},
+			lines: [],
+		});
 		// }
 	}
 	performance.mark("station-table-end");
@@ -350,44 +354,6 @@ export function getStationsForLine(state: MtaState, lineId: string): Station[] {
 		.filter((station): station is Station => station !== undefined);
 }
 
-export function getNextTrainsByDirection(
-	state: MtaState,
-	stationId: string,
-	lineId: string,
-): { north: TrainArrival | null; south: TrainArrival | null } {
-	const now = Temporal.Now.plainTimeISO();
-	const stationArrivals = state.stopTimes
-		.filter(
-			(st) =>
-				st.stop_id === stationId &&
-				st.trip_id.startsWith(lineId) &&
-				Temporal.PlainTime.compare(st.arrival_time, now) > 0,
-		)
-		.map((st) => ({
-			line: st.trip_id.split(".")[0],
-			tripId: st.trip_id,
-			arrivalTime: st.arrival_time,
-			departureTime: st.departure_time,
-			stopSequence: st.stop_sequence,
-		}));
-
-	// Group by direction (assuming higher stop_sequence = northbound)
-	const byDirection = stationArrivals.reduce(
-		(acc, arrival) => {
-			if (!acc.north || arrival.stopSequence > acc.north.stopSequence) {
-				acc.north = arrival;
-			}
-			if (!acc.south || arrival.stopSequence < acc.south.stopSequence) {
-				acc.south = arrival;
-			}
-			return acc;
-		},
-		{ north: null as TrainArrival | null, south: null as TrainArrival | null },
-	);
-
-	return byDirection;
-}
-
 export function getUpcomingArrivals(
 	state: MtaState,
 	stationId: string,
@@ -399,15 +365,43 @@ export function getUpcomingArrivals(
 		.filter(
 			(st) =>
 				st.stop_id === stationId &&
-				Temporal.PlainTime.compare(st.arrival_time, now) > 0,
+				Temporal.PlainTime.compare(
+					{
+						hour: st.arrival_time[0],
+						minute: st.arrival_time[1],
+						second: st.arrival_time[2],
+					},
+					now,
+				) > 0,
 		)
-		.sort((a, b) => Temporal.PlainTime.compare(a.arrival_time, b.arrival_time))
+		.sort((a, b) =>
+			Temporal.PlainTime.compare(
+				{
+					hour: a.arrival_time[0],
+					minute: a.arrival_time[1],
+					second: a.arrival_time[2],
+				},
+				{
+					hour: b.arrival_time[0],
+					minute: b.arrival_time[1],
+					second: b.arrival_time[2],
+				},
+			),
+		)
 		.slice(0, limit)
 		.map((st) => ({
 			line: st.trip_id.split(".")[0],
 			tripId: st.trip_id,
-			arrivalTime: st.arrival_time,
-			departureTime: st.departure_time,
+			arrivalTime: Temporal.PlainTime.from({
+                hour: st.arrival_time[0],
+                minute: st.arrival_time[1],
+                second: st.arrival_time[2],
+            }),
+			departureTime: Temporal.PlainTime.from({
+                hour: st.departure_time[0],
+                minute: st.departure_time[1],
+                second: st.departure_time[2],
+            }),
 			stopSequence: st.stop_sequence,
 		}));
 }
