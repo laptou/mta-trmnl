@@ -1,0 +1,89 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { loadMtaBaselineState, getStation, getUpcomingArrivals, MTA_SUPPLEMENTED_GTFS_STATIC_URL } from "../../util/mta";
+
+const { id } = Astro.params;
+const state = await loadMtaBaselineState(MTA_SUPPLEMENTED_GTFS_STATIC_URL);
+const station = getStation(state, id!);
+const arrivals = station ? getUpcomingArrivals(state, station.id) : [];
+
+if (!station) {
+    return Astro.redirect('/404');
+}
+---
+
+<Layout>
+    <div class="container mx-auto px-4 py-8">
+        <div class="mb-8">
+            <a href="/" class="text-blue-500 hover:underline">&larr; Back to Lines</a>
+        </div>
+        
+        <h1 class="text-4xl font-bold mb-8">{station.name}</h1>
+        
+        <div class="grid gap-8">
+            <div class="border rounded-lg p-6">
+                <h2 class="text-2xl font-bold mb-4">Station Details</h2>
+                <div class="grid gap-4">
+                    <div class="text-sm text-gray-600">
+                        Location: {station.location.lat}, {station.location.lon}
+                    </div>
+                    <div>
+                        <h3 class="font-semibold mb-2">Served by Lines:</h3>
+                        <div class="flex gap-2">
+                            {station.lines.map(lineId => {
+                                const line = state.routes.find(r => r.route_id === lineId);
+                                return (
+                                    <a
+                                        href={`/line/${lineId}`}
+                                        class="px-3 py-1 rounded"
+                                        style={`background-color: #${line?.route_color || 'ffffff'}; color: #${line?.route_text_color || '000000'}`}
+                                    >
+                                        {line?.route_short_name}
+                                    </a>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border rounded-lg p-6">
+                <h2 class="text-2xl font-bold mb-4">Upcoming Arrivals</h2>
+                {arrivals.length > 0 ? (
+                    <table class="w-full">
+                        <thead>
+                            <tr class="text-left">
+                                <th class="pb-2">Line</th>
+                                <th class="pb-2">Arrival</th>
+                                <th class="pb-2">Departure</th>
+                                <th class="pb-2">Trip ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {arrivals.map(arrival => {
+                                const line = state.routes.find(r => r.route_id === arrival.line);
+                                return (
+                                    <tr class="border-t">
+                                        <td class="py-2">
+                                            <span
+                                                class="px-2 py-1 rounded"
+                                                style={`background-color: #${line?.route_color || 'ffffff'}; color: #${line?.route_text_color || '000000'}`}
+                                            >
+                                                {line?.route_short_name}
+                                            </span>
+                                        </td>
+                                        <td class="py-2">{arrival.arrivalTime.toString()}</td>
+                                        <td class="py-2">{arrival.departureTime.toString()}</td>
+                                        <td class="py-2">{arrival.tripId}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                ) : (
+                    <p class="text-gray-500">No upcoming arrivals</p>
+                )}
+            </div>
+        </div>
+    </div>
+</Layout>

@@ -271,26 +271,68 @@ export function getStationsForLine(state: MtaState, lineId: string): Station[] {
 		.filter((station): station is Station => station !== undefined);
 }
 
-export function getUpcomingArrivals(
-	state: MtaState,
-	stationId: string,
-	limit = 10,
-): TrainArrival[] {
-	const now = Temporal.Now.plainTimeISO();
+export function getNextTrainsByDirection(
+    state: MtaState,
+    stationId: string,
+    lineId: string
+): { north: TrainArrival | null; south: TrainArrival | null } {
+    const now = Temporal.Now.plainTimeISO();
+    const stationArrivals = state.stopTimes
+        .filter(
+            (st) =>
+                st.stop_id === stationId &&
+                st.trip_id.startsWith(lineId) &&
+                Temporal.PlainTime.compare(st.arrival_time, now) > 0
+        )
+        .map((st) => ({
+            line: st.trip_id.split(".")[0],
+            tripId: st.trip_id,
+            arrivalTime: st.arrival_time,
+            departureTime: st.departure_time,
+            stopSequence: st.stop_sequence,
+        }));
 
-	return state.stopTimes
-		.filter(
-			(st) =>
-				st.stop_id === stationId &&
-				Temporal.PlainTime.compare(st.arrival_time, now) > 0,
-		)
-		.sort((a, b) => Temporal.PlainTime.compare(a.arrival_time, b.arrival_time))
-		.slice(0, limit)
-		.map((st) => ({
-			line: st.trip_id.split(".")[0], // Assuming trip_id format is "line.trip"
-			tripId: st.trip_id,
-			arrivalTime: st.arrival_time,
-			departureTime: st.departure_time,
-			stopSequence: st.stop_sequence,
-		}));
+    // Group by direction (assuming higher stop_sequence = northbound)
+    const byDirection = stationArrivals.reduce(
+        (acc, arrival) => {
+            if (!acc.north || arrival.stopSequence > acc.north.stopSequence) {
+                acc.north = arrival;
+            }
+            if (!acc.south || arrival.stopSequence < acc.south.stopSequence) {
+                acc.south = arrival;
+            }
+            return acc;
+        },
+        { north: null as TrainArrival | null, south: null as TrainArrival | null }
+    );
+
+    return byDirection;
+}
+
+export function getUpcomingArrivals(
+    state: MtaState,
+    stationId: string,
+    limit = 10
+): TrainArrival[] {
+    const now = Temporal.Now.plainTimeISO();
+
+    return state.stopTimes
+        .filter(
+            (st) =>
+                st.stop_id === stationId &&
+                Temporal.PlainTime.compare(st.arrival_time, now) > 0
+        )
+        .sort((a, b) => Temporal.PlainTime.compare(a.arrival_time, b.arrival_time))
+        .slice(0, limit)
+        .map((st) => ({
+            line: st.trip_id.split(".")[0],
+            tripId: st.trip_id,
+            arrivalTime: st.arrival_time,
+            departureTime: st.departure_time,
+            stopSequence: st.stop_sequence,
+        }));
+}
+
+export function getStation(state: MtaState, stationId: string): Station | undefined {
+    return state.stations.get(stationId);
 }
