@@ -30,20 +30,20 @@ const zipFromBuffer = (buf: Buffer, opts: yauzl.Options) =>
 
 interface CalendarEntry {
 	service_id: string;
-	monday: boolean;
-	tuesday: boolean;
-	wednesday: boolean;
-	thursday: boolean;
-	friday: boolean;
-	saturday: boolean;
-	sunday: boolean;
+	monday: "0" | "1";
+	tuesday: "0" | "1";
+	wednesday: "0" | "1";
+	thursday: "0" | "1";
+	friday: "0" | "1";
+	saturday: "0" | "1";
+	sunday: "0" | "1";
 	start_date: Temporal.PlainDate;
 	end_date: Temporal.PlainDate;
 }
 
 interface CalendarDateEntry {
 	service_id: string;
-	date: string;
+	date: Temporal.PlainDate;
 	exception_type: number;
 }
 
@@ -114,11 +114,20 @@ export interface MtaState {
 	stops: Stop[];
 	transfers: Transfer[];
 	lastUpdated: Date;
+	trips: {
+		route_id: string;
+		trip_id: string;
+		service_id: string;
+		trip_headsign: string;
+		direction_id: string;
+		shape_id: string;
+	}[];
 
 	// Derived data
 	stations: Map<string, Station>;
 	lineToStations: Map<string, Set<string>>;
 	tripToService: Map<string, string>;
+	routeToTrips: Map<string, Set<string>>;
 }
 
 async function readZipEntries(
@@ -216,7 +225,9 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 		}
 	>("calendar.txt");
 
-	const calendarDates = parseCsvFile<CalendarDateEntry>("calendar_dates.txt");
+	const rawCalendarDates = parseCsvFile<CalendarDateEntry & { date: string }>(
+		"calendar_dates.txt",
+	);
 	const routes = parseCsvFile<Route>("routes.txt");
 	const rawStopTimes = parseCsvFile<
 		Omit<StopTime, "arrival_time" | "departure_time"> & {
@@ -225,6 +236,7 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 		}
 	>("stop_times.txt");
 	const stops = parseCsvFile<Stop>("stops.txt");
+	const trips = parseCsvFile<Stop>("trips.txt");
 	const transfers = parseCsvFile<Transfer>("transfers.txt");
 	performance.mark("csv-parse-all-end");
 
@@ -259,6 +271,11 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 	}));
 
 	performance.mark("temporal-parse-all-end");
+
+	const calendarDates = rawCalendarDates.map((entry) => ({
+		...entry,
+		date: parseGtfsDate(entry.date),
+	}));
 
 	console.log(
 		performance.measure(
@@ -315,12 +332,38 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 	}
 	performance.mark("station-table-end");
 
+	// Parse trips and build mappings
+	const trips = parseCsvFile<{
+		route_id: string;
+		trip_id: string;
+		service_id: string;
+		trip_headsign: string;
+		direction_id: string;
+		shape_id: string;
+	}>("trips.txt");
+
+	const tripToService = new Map<string, string>();
+	const routeToTrips = new Map<string, Set<string>>();
+
+	for (const trip of trips) {
+		tripToService.set(trip.trip_id, trip.service_id);
+		
+		let tripsForRoute = routeToTrips.get(trip.route_id);
+		if (!tripsForRoute) {
+			tripsForRoute = new Set();
+			routeToTrips.set(trip.route_id, tripsForRoute);
+		}
+		tripsForRoute.add(trip.trip_id);
+	}
+
 	performance.mark("route-table-start");
 
 	// Map routes to stations
 	for (const route of routes) {
 		const stationsForLine = new Set<string>();
 		lineToStations.set(route.route_id, stationsForLine);
+
+		const routeTrips = trips;
 
 		// Find all stops for this route
 		const routeStopTimes = stopTimes.filter((st) =>
@@ -338,12 +381,6 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 		}
 	}
 	performance.mark("route-table-end");
-
-	// Build trip to service mapping
-	const tripToService = new Map<string, string>();
-	for (const trip of parseCsvFile<{trip_id: string, service_id: string}>("trips.txt")) {
-		tripToService.set(trip.trip_id, trip.service_id);
-	}
 
 	performance.mark("load-end");
 	console.log(
@@ -369,6 +406,8 @@ export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
 		stations,
 		lineToStations,
 		tripToService,
+		trips,
+		routeToTrips,
 	};
 }
 
@@ -383,44 +422,51 @@ export function getStationsForLine(state: MtaState, lineId: string): Station[] {
 		.filter((station): station is Station => station !== undefined);
 }
 
-function isServiceActiveToday(
-	state: MtaState,
-	serviceId: string,
-): boolean {
+function isServiceActiveToday(state: MtaState, serviceId: string): boolean {
 	const today = Temporal.Now.plainDateISO();
 	const dayOfWeek = today.dayOfWeek;
 
-	// Check calendar exceptions first
-	const exception = state.calendarDates.find(
-		(date) => 
-			date.service_id === serviceId && 
-			date.date === today.toString().replace(/-/g, '')
-	);
-	
-	if (exception) {
-		return exception.exception_type === 1; // 1 means service added, 2 means removed
-	}
+	// // Check calendar exceptions first
+	// const exception = state.calendarDates.find(
+	// 	(date) =>
+	// 		date.service_id === serviceId &&
+	// 		Temporal.PlainDate.compare(date.date, today) === 0,
+	// );
+
+	// if (exception) {
+	// 	return exception.exception_type === 1; // 1 means service added, 2 means removed
+	// }
 
 	// Then check regular calendar
 	const service = state.calendar.find((cal) => cal.service_id === serviceId);
 	if (!service) return false;
 
 	// Check if today is within service date range
-	if (Temporal.PlainDate.compare(today, service.start_date) < 0 ||
-		Temporal.PlainDate.compare(today, service.end_date) > 0) {
+	if (
+		Temporal.PlainDate.compare(today, service.start_date) < 0 ||
+		Temporal.PlainDate.compare(today, service.end_date) > 0
+	) {
 		return false;
 	}
 
 	// Check if service runs on this day of week
 	switch (dayOfWeek) {
-		case 1: return service.monday;
-		case 2: return service.tuesday;
-		case 3: return service.wednesday;
-		case 4: return service.thursday;
-		case 5: return service.friday;
-		case 6: return service.saturday;
-		case 7: return service.sunday;
-		default: return false;
+		case 1:
+			return service.monday === "1";
+		case 2:
+			return service.tuesday === "1";
+		case 3:
+			return service.wednesday === "1";
+		case 4:
+			return service.thursday === "1";
+		case 5:
+			return service.friday === "1";
+		case 6:
+			return service.saturday === "1";
+		case 7:
+			return service.sunday === "1";
+		default:
+			return false;
 	}
 }
 
@@ -438,30 +484,31 @@ export function getUpcomingArrivals(
 	if (direction && !stopId) return [];
 
 	return state.stopTimes
-		.filter(
-			(st) => {
-				// Check if stop matches
-				if (!(stopId ? st.stop_id === stopId : st.stop_id.startsWith(stationId))) {
-					return false;
-				}
-
-				// Check if time is in the future
-				if (Temporal.PlainTime.compare(
-					{
-						hour: st.arrival_time[0],
-						minute: st.arrival_time[1],
-						second: st.arrival_time[2],
-					},
-					now,
-				) <= 0) {
-					return false;
-				}
-
-				// Check if service is active today
-				const serviceId = state.tripToService.get(st.trip_id);
-				return serviceId ? isServiceActiveToday(state, serviceId) : false;
+		.filter((st) => {
+			// Check if stop matches
+			if (
+				!(stopId ? st.stop_id === stopId : st.stop_id.startsWith(stationId))
+			) {
+				return false;
 			}
-		)
+
+			// Get trip info
+			const trip = state.trips.find(t => t.trip_id === st.trip_id);
+			if (!trip) return false;
+
+			// Check if service is active today
+			if (!isServiceActiveToday(state, trip.service_id)) return false;
+
+			// Check if time is in the future
+			return Temporal.PlainTime.compare(
+				{
+					hour: st.arrival_time[0],
+					minute: st.arrival_time[1],
+					second: st.arrival_time[2],
+				},
+				now,
+			) > 0;
+		})
 		.sort((a, b) =>
 			Temporal.PlainTime.compare(
 				{
@@ -477,8 +524,10 @@ export function getUpcomingArrivals(
 			),
 		)
 		.slice(0, limit)
-		.map((st) => ({
-			line: st.trip_id.split(".")[0],
+		.map((st) => {
+			const trip = state.trips.find(t => t.trip_id === st.trip_id)!;
+			return {
+				line: trip.route_id,
 			tripId: st.trip_id,
 			arrivalTime: Temporal.PlainTime.from({
 				hour: st.arrival_time[0],
