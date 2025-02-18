@@ -1,18 +1,18 @@
 import { parse } from "csv-parse/sync";
 import JSZip from "jszip";
-import { Temporal } from '@js-temporal/polyfill';
+import { Temporal } from "temporal-polyfill";
 
 interface CalendarEntry {
-    service_id: string;
-    monday: boolean;
-    tuesday: boolean;
-    wednesday: boolean;
-    thursday: boolean;
-    friday: boolean;
-    saturday: boolean;
-    sunday: boolean;
-    start_date: Temporal.PlainDate;
-    end_date: Temporal.PlainDate;
+	service_id: string;
+	monday: boolean;
+	tuesday: boolean;
+	wednesday: boolean;
+	thursday: boolean;
+	friday: boolean;
+	saturday: boolean;
+	sunday: boolean;
+	start_date: Temporal.PlainDate;
+	end_date: Temporal.PlainDate;
 }
 
 interface CalendarDateEntry {
@@ -34,11 +34,11 @@ interface Route {
 }
 
 interface StopTime {
-    trip_id: string;
-    stop_id: string;
-    arrival_time: Temporal.PlainTime;
-    departure_time: Temporal.PlainTime;
-    stop_sequence: number;
+	trip_id: string;
+	stop_id: string;
+	arrival_time: Temporal.PlainTime;
+	departure_time: Temporal.PlainTime;
+	stop_sequence: number;
 }
 
 interface Stop {
@@ -58,35 +58,35 @@ interface Transfer {
 }
 
 export interface Station {
-    id: string;
-    name: string;
-    location: {
-        lat: number;
-        lon: number;
-    };
-    lines: string[];
+	id: string;
+	name: string;
+	location: {
+		lat: number;
+		lon: number;
+	};
+	lines: string[];
 }
 
 export interface TrainArrival {
-    line: string;
-    tripId: string;
-    arrivalTime: Temporal.PlainTime;
-    departureTime: Temporal.PlainTime;
-    stopSequence: number;
+	line: string;
+	tripId: string;
+	arrivalTime: Temporal.PlainTime;
+	departureTime: Temporal.PlainTime;
+	stopSequence: number;
 }
 
 export interface MtaState {
-    calendar: CalendarEntry[];
-    calendarDates: CalendarDateEntry[];
-    routes: Route[];
-    stopTimes: StopTime[];
-    stops: Stop[];
-    transfers: Transfer[];
-    lastUpdated: Date;
+	calendar: CalendarEntry[];
+	calendarDates: CalendarDateEntry[];
+	routes: Route[];
+	stopTimes: StopTime[];
+	stops: Stop[];
+	transfers: Transfer[];
+	lastUpdated: Date;
 
-    // Derived data
-    stations: Map<string, Station>;
-    lineToStations: Map<string, Set<string>>;
+	// Derived data
+	stations: Map<string, Station>;
+	lineToStations: Map<string, Set<string>>;
 }
 
 async function readCsvFromZip<T>(zip: JSZip, filename: string): Promise<T[]> {
@@ -103,112 +103,133 @@ async function readCsvFromZip<T>(zip: JSZip, filename: string): Promise<T[]> {
 	});
 }
 
-export const MTA_SUPPLEMENTED_GTFS_STATIC_URL = "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_supplemented.zip";
+export const MTA_SUPPLEMENTED_GTFS_STATIC_URL =
+	"https://rrgtfsfeeds.s3.amazonaws.com/gtfs_supplemented.zip";
 
 export async function loadMtaBaselineState(zipPath: string): Promise<MtaState> {
-    const zip = await JSZip.loadAsync(
-        await fetch(zipPath).then((res) => res.blob()),
-    );
+	const zip = await JSZip.loadAsync(
+		await fetch(zipPath).then((res) => res.blob()),
+	);
 
-    const [rawCalendar, calendarDates, routes, rawStopTimes, stops, transfers] =
-        await Promise.all([
-            readCsvFromZip<Omit<CalendarEntry, 'start_date' | 'end_date'> & { start_date: string, end_date: string }>(zip, "calendar.txt"),
-            readCsvFromZip<CalendarDateEntry>(zip, "calendar_dates.txt"),
-            readCsvFromZip<Route>(zip, "routes.txt"),
-            readCsvFromZip<Omit<StopTime, 'arrival_time' | 'departure_time'> & { arrival_time: string, departure_time: string }>(zip, "stop_times.txt"),
-            readCsvFromZip<Stop>(zip, "stops.txt"),
-            readCsvFromZip<Transfer>(zip, "transfers.txt"),
-        ]);
+	const [rawCalendar, calendarDates, routes, rawStopTimes, stops, transfers] =
+		await Promise.all([
+			readCsvFromZip<
+				Omit<CalendarEntry, "start_date" | "end_date"> & {
+					start_date: string;
+					end_date: string;
+				}
+			>(zip, "calendar.txt"),
+			readCsvFromZip<CalendarDateEntry>(zip, "calendar_dates.txt"),
+			readCsvFromZip<Route>(zip, "routes.txt"),
+			readCsvFromZip<
+				Omit<StopTime, "arrival_time" | "departure_time"> & {
+					arrival_time: string;
+					departure_time: string;
+				}
+			>(zip, "stop_times.txt"),
+			readCsvFromZip<Stop>(zip, "stops.txt"),
+			readCsvFromZip<Transfer>(zip, "transfers.txt"),
+		]);
 
-    // Convert date strings to Temporal.PlainDate
-    const calendar = rawCalendar.map(entry => ({
-        ...entry,
-        start_date: Temporal.PlainDate.from(entry.start_date),
-        end_date: Temporal.PlainDate.from(entry.end_date)
-    }));
+	// Convert date strings to Temporal.PlainDate
+	const calendar = rawCalendar.map((entry) => ({
+		...entry,
+		start_date: Temporal.PlainDate.from(entry.start_date),
+		end_date: Temporal.PlainDate.from(entry.end_date),
+	}));
 
-    // Convert time strings to Temporal.PlainTime
-    const stopTimes = rawStopTimes.map(entry => ({
-        ...entry,
-        arrival_time: Temporal.PlainTime.from(entry.arrival_time),
-        departure_time: Temporal.PlainTime.from(entry.departure_time)
-    }));
+	// Convert time strings to Temporal.PlainTime
+	const stopTimes = rawStopTimes.map((entry) => ({
+		...entry,
+		arrival_time: Temporal.PlainTime.from(entry.arrival_time),
+		departure_time: Temporal.PlainTime.from(entry.departure_time),
+	}));
 
-    // Build derived data structures
-    const stations = new Map<string, Station>();
-    const lineToStations = new Map<string, Set<string>>();
+	// Build derived data structures
+	const stations = new Map<string, Station>();
+	const lineToStations = new Map<string, Set<string>>();
 
-    // Process stops into stations
-    for (const stop of stops) {
-        if (!stop.parent_station) { // Only process parent stations
-            stations.set(stop.stop_id, {
-                id: stop.stop_id,
-                name: stop.stop_name,
-                location: {
-                    lat: stop.stop_lat,
-                    lon: stop.stop_lon
-                },
-                lines: []
-            });
-        }
-    }
+	// Process stops into stations
+	for (const stop of stops) {
+		if (!stop.parent_station) {
+			// Only process parent stations
+			stations.set(stop.stop_id, {
+				id: stop.stop_id,
+				name: stop.stop_name,
+				location: {
+					lat: stop.stop_lat,
+					lon: stop.stop_lon,
+				},
+				lines: [],
+			});
+		}
+	}
 
-    // Map routes to stations
-    for (const route of routes) {
-        const stationsForLine = new Set<string>();
-        lineToStations.set(route.route_id, stationsForLine);
+	// Map routes to stations
+	for (const route of routes) {
+		const stationsForLine = new Set<string>();
+		lineToStations.set(route.route_id, stationsForLine);
 
-        // Find all stops for this route
-        const routeStopTimes = stopTimes.filter(st => 
-            st.trip_id.startsWith(route.route_id));
-        
-        for (const st of routeStopTimes) {
-            const station = stations.get(st.stop_id);
-            if (station) {
-                stationsForLine.add(station.id);
-                if (!station.lines.includes(route.route_id)) {
-                    station.lines.push(route.route_id);
-                }
-            }
-        }
-    }
+		// Find all stops for this route
+		const routeStopTimes = stopTimes.filter((st) =>
+			st.trip_id.startsWith(route.route_id),
+		);
 
-    return {
-        calendar,
-        calendarDates,
-        routes,
-        stopTimes,
-        stops,
-        transfers,
-        lastUpdated: new Date(),
-        stations,
-        lineToStations
-    };
+		for (const st of routeStopTimes) {
+			const station = stations.get(st.stop_id);
+			if (station) {
+				stationsForLine.add(station.id);
+				if (!station.lines.includes(route.route_id)) {
+					station.lines.push(route.route_id);
+				}
+			}
+		}
+	}
+
+	return {
+		calendar,
+		calendarDates,
+		routes,
+		stopTimes,
+		stops,
+		transfers,
+		lastUpdated: new Date(),
+		stations,
+		lineToStations,
+	};
 }
 
 export function getAllLines(state: MtaState): Route[] {
-    return state.routes;
+	return state.routes;
 }
 
 export function getStationsForLine(state: MtaState, lineId: string): Station[] {
-    const stationIds = state.lineToStations.get(lineId) || new Set();
-    return Array.from(stationIds)
-        .map(id => state.stations.get(id))
-        .filter((station): station is Station => station !== undefined);
+	const stationIds = state.lineToStations.get(lineId) || new Set();
+	return Array.from(stationIds)
+		.map((id) => state.stations.get(id))
+		.filter((station): station is Station => station !== undefined);
 }
 
-export function getUpcomingArrivals(state: MtaState, stationId: string, limit = 10): TrainArrival[] {
-    const now = Temporal.Now.plainTimeISO();
+export function getUpcomingArrivals(
+	state: MtaState,
+	stationId: string,
+	limit = 10,
+): TrainArrival[] {
+	const now = Temporal.Now.plainTimeISO();
 
-    return state.stopTimes
-        .filter(st => st.stop_id === stationId && Temporal.PlainTime.compare(st.arrival_time, now) > 0)
-        .sort((a, b) => Temporal.PlainTime.compare(a.arrival_time, b.arrival_time))
-        .slice(0, limit)
-        .map(st => ({
-            line: st.trip_id.split('.')[0], // Assuming trip_id format is "line.trip"
-            tripId: st.trip_id,
-            arrivalTime: st.arrival_time,
-            departureTime: st.departure_time,
-            stopSequence: st.stop_sequence
-        }));
+	return state.stopTimes
+		.filter(
+			(st) =>
+				st.stop_id === stationId &&
+				Temporal.PlainTime.compare(st.arrival_time, now) > 0,
+		)
+		.sort((a, b) => Temporal.PlainTime.compare(a.arrival_time, b.arrival_time))
+		.slice(0, limit)
+		.map((st) => ({
+			line: st.trip_id.split(".")[0], // Assuming trip_id format is "line.trip"
+			tripId: st.trip_id,
+			arrivalTime: st.arrival_time,
+			departureTime: st.departure_time,
+			stopSequence: st.stop_sequence,
+		}));
 }
