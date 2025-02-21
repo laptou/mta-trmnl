@@ -1,28 +1,29 @@
 ---
+import ArrivalList from "../../components/arrival-list.astro";
 import Layout from "../../layouts/Layout.astro";
-import type { TrainArrival } from "../../util/mta";
+import type { StopTime } from "../../util/mta";
 import {
-    getAllLines,
-    getStationsForLine,
+    getAllroutes,
+    getStationsForroute,
     getUpcomingArrivals,
     type Station,
 } from "../../util/mta";
 
-const { id: lineId } = Astro.params;
-if (!lineId) throw new Error("impossible");
+const { id: routeId } = Astro.params;
+if (!routeId) throw new Error("impossible");
 
-const lines = await getAllLines();
-const line = lines.find((r) => r.routeId === lineId);
-if (!line) return Astro.redirect("/404");
+const routes = await getAllroutes();
+const route = routes.find((r) => r.routeId === routeId);
+if (!route) return Astro.redirect("/404");
 
-const stations = await getStationsForLine(lineId);
+const stations = await getStationsForroute(routeId);
 
 const stationsWithArrivals = await Promise.all(
     stations
         .filter((s) => !s.parentStation)
         .map(async (station) => {
-            let arrivals = await getUpcomingArrivals(station.stopId, lineId, 6);
-            arrivals = arrivals.filter((a) => a.line === line.routeId);
+            let arrivals = await getUpcomingArrivals(station.stopId, routeId, 6);
+            arrivals = arrivals.filter((a) => a.route === route.routeId);
 
             return { station, arrivals };
         }),
@@ -32,16 +33,16 @@ const stationsWithArrivals = await Promise.all(
 <Layout>
     <div class="container mx-auto px-4 py-8">
         <div class="mb-8">
-            <a href="/" class="text-blue-500 hover:underline"
-                >&larr; Back to Lines</a
+            <a href="/" class="text-blue-500 hover:underroute"
+                >&larr; Back to routes</a
             >
         </div>
 
         <h1
             class="text-4xl font-bold mb-8"
-            style={`color: #${line.routeColor || "000000"}`}
+            style={`color: #${route.routeColor || "000000"}`}
         >
-            Line {line.routeShortName}
+            route {route.routeShortName}
         </h1>
 
         <div class="grid gap-8">
@@ -68,45 +69,19 @@ const stationsWithArrivals = await Promise.all(
                                         <h3 class="font-semibold mb-2">
                                             Uptown
                                         </h3>
-                                        {arrivalsNorth.length > 0 ? (
-                                            <ul class="space-y-1">
-                                                {arrivalsNorth.map(
-                                                    (arrival) => (
-                                                        <li>
-                                                            {arrival.line}{" "}
-                                                            {arrival.departureTime.toString()}
-                                                        </li>
-                                                    ),
-                                                )}
-                                            </ul>
-                                        ) : (
-                                            <p class="text-gray-500">
-                                                No upcoming{" "}
-                                                {line.routeShortName} trains
-                                            </p>
-                                        )}
+                                        <ArrivalList
+                                            route={route}
+                                            arrivals={arrivalsNorth}
+                                        />
                                     </div>
                                     <div>
                                         <h3 class="font-semibold mb-2">
                                             Downtown
                                         </h3>
-                                        {arrivalsSouth.length > 0 ? (
-                                            <ul class="space-y-1">
-                                                {arrivalsSouth.map(
-                                                    (arrival) => (
-                                                        <li>
-                                                            {arrival.line}{" "}
-                                                            {arrival.departureTime.toString()}
-                                                        </li>
-                                                    ),
-                                                )}
-                                            </ul>
-                                        ) : (
-                                            <p class="text-gray-500">
-                                                No upcoming{" "}
-                                                {line.routeShortName} trains
-                                            </p>
-                                        )}
+                                        <ArrivalList
+                                            route={route}
+                                            arrivals={arrivalsSouth}
+                                        />
                                     </div>
                                 </div>
                             </a>

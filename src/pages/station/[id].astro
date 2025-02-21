@@ -1,4 +1,5 @@
 ---
+import ArrivalList from "../../components/arrival-list.astro";
 import Layout from "../../layouts/Layout.astro";
 import { getStation, getUpcomingArrivals } from "../../util/mta";
 
@@ -17,7 +18,7 @@ const arrivalsSouth = arrivals.filter((a) => a.stopId === `${station.stopId}S`);
     <div class="container mx-auto px-4 py-8">
         <div class="mb-8">
             <a href="/" class="text-blue-500 hover:underline"
-                >&larr; Back to Lines</a
+                >&larr; Back to routes</a
             >
         </div>
 
@@ -26,37 +27,11 @@ const arrivalsSouth = arrivals.filter((a) => a.stopId === `${station.stopId}S`);
         <div class="grid grid-cols-2 gap-4">
             <div>
                 <h3 class="font-semibold mb-2">Uptown</h3>
-                {
-                    arrivalsNorth.length > 0 ? (
-                        <ul class="space-y-1">
-                            {arrivalsNorth.map((arrival) => (
-                                <li>
-                                    {arrival.line}{" "}
-                                    {arrival.departureTime.toString()}
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p class="text-gray-500">No upcoming trains</p>
-                    )
-                }
+                <ArrivalList arrivals={arrivalsNorth} />
             </div>
             <div>
                 <h3 class="font-semibold mb-2">Downtown</h3>
-                {
-                    arrivalsSouth.length > 0 ? (
-                        <ul class="space-y-1">
-                            {arrivalsSouth.map((arrival) => (
-                                <li>
-                                    {arrival.line}{" "}
-                                    {arrival.departureTime.toString()}
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p class="text-gray-500">No upcoming trains</p>
-                    )
-                }
+                <ArrivalList arrivals={arrivalsNorth} />
             </div>
         </div>
     </div>

@@ -1,0 +1,28 @@
+---
+import type { Route, StopTime } from "../util/mta";
+interface Props {
+  route?: Route;
+  arrivals: StopTime[];
+}
+---
+
+{
+  Astro.props.arrivals.length > 0 ? (
+    <ul class="space-y-1">
+      {Astro.props.arrivals.map((arrival) => (
+        <li>
+          {arrival.route} {arrival.departureTime.toString()}{" "}
+          {arrival.isRealtimeUpdated ? "⚡" : ""}
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p class="text-gray-500">
+      {Astro.props.route ? (
+        <>No upcoming {Astro.props.route.routeShortName} trains</>
+      ) : (
+        <>No upcoming trains</>
+      )}
+    </p>
+  )
+}

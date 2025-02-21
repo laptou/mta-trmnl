@@ -47,16 +47,17 @@ const stationSchema = z.object({
 export type Station = z.infer<typeof stationSchema>;
 
 // TrainArrival schema
-const trainArrivalSchema = z.object({
-	line: z.string(),
+const stopTimeSchema = z.object({
+	route: z.string(),
 	tripId: z.string(),
 	stopId: z.string(),
 	stopName: z.string(),
 	arrivalTime: plainTimeSchema,
 	departureTime: plainTimeSchema,
+	isRealtimeUpdated: z.boolean(),
 	stopSequence: z.number(),
 });
-export type TrainArrival = z.infer<typeof trainArrivalSchema>;
+export type StopTime = z.infer<typeof stopTimeSchema>;
 
 // Calendar entry schema.
 const calendarEntrySchema = z.object({
@@ -85,26 +86,26 @@ export type CalendarDateEntry = z.infer<typeof calendarDateEntrySchema>;
 // --- Helper functions using DO backend with zod validation ---
 
 /**
- * Returns all lines (routes) from the DO.
+ * Returns all routes (routes) from the DO.
  */
-export async function getAllLines(): Promise<Route[]> {
-	const res = await fetch(`${BACKEND_ORIGIN}/lines`);
+export async function getAllroutes(): Promise<Route[]> {
+	const res = await fetch(`${BACKEND_ORIGIN}/routes`);
 	if (!res.ok)
-		throw new Error(`getAllLines failed: ${res.status} ${res.statusText}`);
+		throw new Error(`getAllroutes failed: ${res.status} ${res.statusText}`);
 	const json = await res.json();
 	return z.array(routeSchema).parse(json);
 }
 
 /**
- * Returns stations for a given line id from the DO.
+ * Returns stations for a given route id from the DO.
  */
-export async function getStationsForLine(lineId: string): Promise<Station[]> {
+export async function getStationsForroute(routeId: string): Promise<Station[]> {
 	const url = new URL(`${BACKEND_ORIGIN}/stations`);
-	url.searchParams.set("lineId", lineId);
+	url.searchParams.set("routeId", routeId);
 	const res = await fetch(url.toString());
 	if (!res.ok)
 		throw new Error(
-			`getStationsForLine failed: ${res.status} ${res.statusText}`,
+			`getStationsForroute failed: ${res.status} ${res.statusText}`,
 		);
 	const json = await res.json();
 	return z.array(stationSchema).parse(json);
@@ -133,12 +134,12 @@ export async function getStation(
  */
 export async function getUpcomingArrivals(
 	stationId: string,
-	lineId: string | undefined = undefined,
+	routeId: string | undefined = undefined,
 	limit = 10,
-): Promise<TrainArrival[]> {
+): Promise<StopTime[]> {
 	const url = new URL(`${BACKEND_ORIGIN}/arrivals`);
 	url.searchParams.set("stationId", stationId);
-	if (lineId) url.searchParams.set("lineId", lineId);
+	if (routeId) url.searchParams.set("routeId", routeId);
 	url.searchParams.set("limit", limit.toString());
 	const res = await fetch(url.toString());
 	if (!res.ok)
@@ -146,5 +147,5 @@ export async function getUpcomingArrivals(
 			`getUpcomingArrivals failed: ${res.status} ${res.statusText}`,
 		);
 	const json = await res.json();
-	return z.array(trainArrivalSchema).parse(json);
+	return z.array(stopTimeSchema).parse(json);
 }

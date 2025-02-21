@@ -1,25 +1,25 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { getAllLines } from "../util/mta";
+import { getAllroutes } from "../util/mta";
 
-const lines = await getAllLines();
+const routes = await getAllroutes();
 ---
 
 <Layout>
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-4xl font-bold mb-8">MTA Train Lines</h1>
+        <h1 class="text-4xl font-bold mb-8">MTA Train routes</h1>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {
-                lines.map((line) => (
-                    <a href={`/line/${line.routeId}`} class="transition-shadow">
+                routes.map((route) => (
+                    <a href={`/route/${route.routeId}`} class="transition-shadow">
                         <div
                             class="p-4 rounded-lg"
-                            style={`background-color: #${line.routeColor || "ffffff"}; color: #${line.routeTextColor || "000000"}`}
+                            style={`background-color: #${route.routeColor || "ffffff"}; color: #${route.routeTextColor || "000000"}`}
                         >
                             <h2 class="text-2xl font-bold">
-                                {line.routeShortName}
+                                {route.routeShortName}
                             </h2>
-                            <p>{line.routeLongName}</p>
+                            <p>{route.routeLongName}</p>
                         </div>
                     </a>
                 ))
