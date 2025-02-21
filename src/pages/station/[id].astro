@@ -2,12 +2,11 @@
 import Layout from "../../layouts/Layout.astro";
 import { getStation, getUpcomingArrivals } from "../../util/mta";
 
-const { id } = Astro.params;
-const station = await getStation(id!);
+const { id: stationId } = Astro.params;
+if (!stationId) throw new Error("impossible");
 
-if (!station) {
-    return Astro.redirect("/404");
-}
+const station = await getStation(stationId);
+if (!station) return Astro.redirect("/404");
 
 const arrivals = await getUpcomingArrivals(station.stopId);
 const arrivalsNorth = arrivals.filter((a) => a.stopId === `${station.stopId}N`);

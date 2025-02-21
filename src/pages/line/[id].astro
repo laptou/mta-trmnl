@@ -13,12 +13,8 @@ if (!lineId) throw new Error("impossible");
 
 const lines = await getAllLines();
 const line = lines.find((r) => r.routeId === lineId);
-if (!line) {
-    console.log("line not found");
-    return Astro.redirect("/404");
-}
+if (!line) return Astro.redirect("/404");
 
-console.log("getting stations for line");
 const stations = await getStationsForLine(lineId);
 
 const stationsWithArrivals = await Promise.all(
