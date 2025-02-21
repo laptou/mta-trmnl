@@ -14,8 +14,7 @@ const now = Temporal.Now.plainDateTime(
   "America/New_York",
 ).toPlainTime();
 
-
-const timeFmt = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+const timeFmt = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
 
 const fmtTime = (time: Temporal.PlainTime) => {
   return timeFmt.format(new Date(0, 0, 0, time.hour, time.minute, time.second));
@@ -24,7 +23,12 @@ const fmtTime = (time: Temporal.PlainTime) => {
 const durationFmt = new DurationFormat(undefined, {});
 
 const fmtDuration = (duration: Temporal.Duration) => {
-  return durationFmt.format(duration.round("minute"));
+  const rounded = duration.round({
+    smallestUnit: "minute",
+    roundingMode: "floor",
+  });
+  if (rounded.total("minute") < 1) return "Now";
+  return durationFmt.format(rounded);
 };
 ---
 
