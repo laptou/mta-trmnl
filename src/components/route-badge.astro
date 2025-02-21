@@ -1,0 +1,23 @@
+---
+import { getRoute, type Route } from "../util/mta";
+
+type Props =
+  | {
+      route: Route;
+    }
+  | {
+      routeId: string;
+    };
+
+const route =
+  "route" in Astro.props
+    ? Astro.props.route
+    : await getRoute(Astro.props.routeId);
+---
+
+<span
+  style={`background-color: #${route.routeColor || "ffffff"}; color: #${route.routeTextColor || "000000"}`}
+  class="px-2 aspect-square inline-block rounded-full"
+>
+  {route.routeShortName}
+</span>

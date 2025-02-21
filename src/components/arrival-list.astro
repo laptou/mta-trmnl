@@ -1,9 +1,31 @@
 ---
-import type { Route, StopTime } from "../util/mta";
+import { DurationFormat } from "@formatjs/intl-durationformat";
+import { Temporal } from "temporal-polyfill";
+import { getRoute, type Route, type StopTime } from "../util/mta";
+import RouteBadge from "./route-badge.astro";
+
 interface Props {
   route?: Route;
   arrivals: StopTime[];
 }
+
+const now = Temporal.Now.plainDateTime(
+  "gregory",
+  "America/New_York",
+).toPlainTime();
+
+
+const timeFmt = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+
+const fmtTime = (time: Temporal.PlainTime) => {
+  return timeFmt.format(new Date(0, 0, 0, time.hour, time.minute, time.second));
+};
+
+const durationFmt = new DurationFormat(undefined, {});
+
+const fmtDuration = (duration: Temporal.Duration) => {
+  return durationFmt.format(duration.round("minute"));
+};
 ---
 
 {
@@ -11,7 +33,9 @@ interface Props {
     <ul class="space-y-1">
       {Astro.props.arrivals.map((arrival) => (
         <li>
-          {arrival.route} {arrival.departureTime.toString()}{" "}
+          <RouteBadge routeId={arrival.route} />{" "}
+          <span>{fmtDuration(arrival.departureTime.since(now))}</span>{" "}
+          <span class="text-sm">{fmtTime(arrival.departureTime)}</span>{" "}
           {arrival.isRealtimeUpdated ? "⚡" : ""}
         </li>
       ))}

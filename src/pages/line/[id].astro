@@ -3,8 +3,8 @@ import ArrivalList from "../../components/arrival-list.astro";
 import Layout from "../../layouts/Layout.astro";
 import type { StopTime } from "../../util/mta";
 import {
-    getAllroutes,
-    getStationsForroute,
+    getAllRoutes,
+    getStationsForRoute,
     getUpcomingArrivals,
     type Station,
 } from "../../util/mta";
@@ -12,11 +12,11 @@ import {
 const { id: routeId } = Astro.params;
 if (!routeId) throw new Error("impossible");
 
-const routes = await getAllroutes();
+const routes = await getAllRoutes();
 const route = routes.find((r) => r.routeId === routeId);
 if (!route) return Astro.redirect("/404");
 
-const stations = await getStationsForroute(routeId);
+const stations = await getStationsForRoute(routeId);
 
 const stationsWithArrivals = await Promise.all(
     stations

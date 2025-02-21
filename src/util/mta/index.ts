@@ -83,12 +83,15 @@ const calendarDateEntrySchema = z.object({
 });
 export type CalendarDateEntry = z.infer<typeof calendarDateEntrySchema>;
 
-// --- Helper functions using DO backend with zod validation ---
+export async function getRoute(routeId: string): Promise<Route> {
+	const res = await fetch(`${BACKEND_ORIGIN}/route?routeId=${routeId}`);
+	if (!res.ok)
+		throw new Error(`getAllroutes failed: ${res.status} ${res.statusText}`);
+	const json = await res.json();
+	return routeSchema.parse(json);
+}
 
-/**
- * Returns all routes (routes) from the DO.
- */
-export async function getAllroutes(): Promise<Route[]> {
+export async function getAllRoutes(): Promise<Route[]> {
 	const res = await fetch(`${BACKEND_ORIGIN}/routes`);
 	if (!res.ok)
 		throw new Error(`getAllroutes failed: ${res.status} ${res.statusText}`);
@@ -99,7 +102,7 @@ export async function getAllroutes(): Promise<Route[]> {
 /**
  * Returns stations for a given route id from the DO.
  */
-export async function getStationsForroute(routeId: string): Promise<Station[]> {
+export async function getStationsForRoute(routeId: string): Promise<Station[]> {
 	const url = new URL(`${BACKEND_ORIGIN}/stations`);
 	url.searchParams.set("routeId", routeId);
 	const res = await fetch(url.toString());
