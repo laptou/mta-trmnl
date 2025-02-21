@@ -1,20 +1,36 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import type { TrainArrival } from "../../util/mta";
 import {
-    loadMtaBaselineState,
+    getAllLines,
     getStationsForLine,
     getUpcomingArrivals,
-    MTA_SUPPLEMENTED_GTFS_STATIC_URL,
+    type Station,
 } from "../../util/mta";
 
-const { id } = Astro.params;
-const state = await loadMtaBaselineState(MTA_SUPPLEMENTED_GTFS_STATIC_URL);
-const stations = getStationsForLine(state, id!);
-const line = state.routes.find((r) => r.route_id === id);
+const { id: lineId } = Astro.params;
+if (!lineId) throw new Error("impossible");
 
+const lines = await getAllLines();
+const line = lines.find((r) => r.routeId === lineId);
 if (!line) {
+    console.log("line not found");
     return Astro.redirect("/404");
 }
+
+console.log("getting stations for line");
+const stations = await getStationsForLine(lineId);
+
+const stationsWithArrivals = await Promise.all(
+    stations
+        .filter((s) => !s.parentStation)
+        .map(async (station) => {
+            let arrivals = await getUpcomingArrivals(station.stopId, lineId, 6);
+            arrivals = arrivals.filter((a) => a.line === line.routeId);
+
+            return { station, arrivals };
+        }),
+);
 ---
 
 <Layout>
@@ -27,68 +43,72 @@ if (!line) {
 
         <h1
             class="text-4xl font-bold mb-8"
-            style={`color: #${line.route_color || "000000"}`}
+            style={`color: #${line.routeColor || "000000"}`}
         >
-            Line {line.route_short_name}
+            Line {line.routeShortName}
         </h1>
 
         <div class="grid gap-8">
             {
-                stations.map((station) => {
-                    const northTrains = getUpcomingArrivals(
-                        state,
-                        station.id,
-                        "north",
-                        3,
+                stationsWithArrivals.map(({ station, arrivals }) => {
+                    const arrivalsNorth = arrivals.filter(
+                        (a) => a.stopId === station.stopId + "N",
                     );
-                    const southTrains = getUpcomingArrivals(
-                        state,
-                        station.id,
-                        "south",
-                        3,
+                    const arrivalsSouth = arrivals.filter(
+                        (a) => a.stopId === station.stopId + "S",
                     );
+
                     return (
                         <div class="border rounded-lg p-6">
-                            <a href={`/station/${station.id}`} class="block">
+                            <a
+                                href={`/station/${station.stopId}`}
+                                class="block"
+                            >
                                 <h2 class="text-2xl font-bold mb-4 hover:text-blue-500">
-                                    {station.name}
+                                    {station.stopName}
                                 </h2>
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
                                         <h3 class="font-semibold mb-2">
-                                            Northbound
+                                            Uptown
                                         </h3>
-                                        {northTrains.length > 0 ? (
+                                        {arrivalsNorth.length > 0 ? (
                                             <ul class="space-y-1">
-                                                {northTrains.map((arrival) => (
-                                                    <li>
-                                                        {arrival.line}{" "}
-                                                        {arrival.departureTime.toString()}
-                                                    </li>
-                                                ))}
+                                                {arrivalsNorth.map(
+                                                    (arrival) => (
+                                                        <li>
+                                                            {arrival.line}{" "}
+                                                            {arrival.departureTime.toString()}
+                                                        </li>
+                                                    ),
+                                                )}
                                             </ul>
                                         ) : (
                                             <p class="text-gray-500">
-                                                No upcoming trains
+                                                No upcoming{" "}
+                                                {line.routeShortName} trains
                                             </p>
                                         )}
                                     </div>
                                     <div>
                                         <h3 class="font-semibold mb-2">
-                                            Southbound
+                                            Downtown
                                         </h3>
-                                        {southTrains.length > 0 ? (
+                                        {arrivalsSouth.length > 0 ? (
                                             <ul class="space-y-1">
-                                                {southTrains.map((arrival) => (
-                                                    <li>
-                                                        {arrival.line}{" "}
-                                                        {arrival.departureTime.toString()}
-                                                    </li>
-                                                ))}
+                                                {arrivalsSouth.map(
+                                                    (arrival) => (
+                                                        <li>
+                                                            {arrival.line}{" "}
+                                                            {arrival.departureTime.toString()}
+                                                        </li>
+                                                    ),
+                                                )}
                                             </ul>
                                         ) : (
                                             <p class="text-gray-500">
-                                                No upcoming trains
+                                                No upcoming{" "}
+                                                {line.routeShortName} trains
                                             </p>
                                         )}
                                     </div>

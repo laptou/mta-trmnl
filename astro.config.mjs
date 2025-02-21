@@ -2,12 +2,12 @@
 import { defineConfig } from "astro/config";
 import cloudflare from "@astrojs/cloudflare";
 
+import tailwindcss from "@tailwindcss/vite";
+
 export default defineConfig({
   output: 'server',
   adapter: cloudflare(),
   vite: {
-    define: {
-      'process.env.DURABLE_OBJECTS': true
-    }
+    plugins: [tailwindcss()]
   }
 });

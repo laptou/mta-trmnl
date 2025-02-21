@@ -1,129 +1,63 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { loadMtaBaselineState, getStation, getUpcomingArrivals, MTA_SUPPLEMENTED_GTFS_STATIC_URL } from "../../util/mta";
+import { getStation, getUpcomingArrivals } from "../../util/mta";
 
 const { id } = Astro.params;
-const state = await loadMtaBaselineState(MTA_SUPPLEMENTED_GTFS_STATIC_URL);
-const station = getStation(state, id!);
-const northArrivals = station ? getUpcomingArrivals(state, station.id, 'north') : [];
-const southArrivals = station ? getUpcomingArrivals(state, station.id, 'south') : [];
+const station = await getStation(id!);
 
 if (!station) {
-    return Astro.redirect('/404');
+    return Astro.redirect("/404");
 }
+
+const arrivals = await getUpcomingArrivals(station.stopId);
+const arrivalsNorth = arrivals.filter((a) => a.stopId === `${station.stopId}N`);
+const arrivalsSouth = arrivals.filter((a) => a.stopId === `${station.stopId}S`);
 ---
 
 <Layout>
     <div class="container mx-auto px-4 py-8">
         <div class="mb-8">
-            <a href="/" class="text-blue-500 hover:underline">&larr; Back to Lines</a>
+            <a href="/" class="text-blue-500 hover:underline"
+                >&larr; Back to Lines</a
+            >
         </div>
-        
-        <h1 class="text-4xl font-bold mb-8">{station.name}</h1>
-        
-        <div class="grid gap-8">
-            <div class="border rounded-lg p-6">
-                <h2 class="text-2xl font-bold mb-4">Station Details</h2>
-                <div class="grid gap-4">
-                    <div class="text-sm text-gray-600">
-                        Location: {station.location.lat}, {station.location.lon}
-                    </div>
-                    <div>
-                        <h3 class="font-semibold mb-2">Served by Lines:</h3>
-                        <div class="flex gap-2">
-                            {Array.from(station.lines).map(lineId => {
-                                const line = state.routes.find(r => r.route_id === lineId);
-                                return (
-                                    <a
-                                        href={`/line/${lineId}`}
-                                        class="px-3 py-1 rounded"
-                                        style={`background-color: #${line?.route_color || 'ffffff'}; color: #${line?.route_text_color || '000000'}`}
-                                    >
-                                        {line?.route_short_name}
-                                    </a>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </div>
+
+        <h1 class="text-4xl font-bold mb-8">{station.stopName}</h1>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <h3 class="font-semibold mb-2">Uptown</h3>
+                {
+                    arrivalsNorth.length > 0 ? (
+                        <ul class="space-y-1">
+                            {arrivalsNorth.map((arrival) => (
+                                <li>
+                                    {arrival.line}{" "}
+                                    {arrival.departureTime.toString()}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p class="text-gray-500">No upcoming trains</p>
+                    )
+                }
             </div>
-
-            <div class="grid grid-cols-2 gap-8">
-                <div class="border rounded-lg p-6">
-                    <h2 class="text-2xl font-bold mb-4">Northbound Arrivals</h2>
-                    {northArrivals.length > 0 ? (
-                        <table class="w-full">
-                            <thead>
-                                <tr class="text-left">
-                                    <th class="pb-2">Line</th>
-                                    <th class="pb-2">Arrival</th>
-                                    <th class="pb-2">Departure</th>
-                                    <th class="pb-2">Trip ID</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {northArrivals.map(arrival => {
-                                    const line = state.routes.find(r => r.route_id === arrival.line);
-                                    return (
-                                        <tr class="border-t">
-                                            <td class="py-2">
-                                                <span
-                                                    class="px-2 py-1 rounded"
-                                                    style={`background-color: #${line?.route_color || 'ffffff'}; color: #${line?.route_text_color || '000000'}`}
-                                                >
-                                                    {line?.route_short_name}
-                                                </span>
-                                            </td>
-                                            <td class="py-2">{arrival.arrivalTime.toString()}</td>
-                                            <td class="py-2">{arrival.departureTime.toString()}</td>
-                                            <td class="py-2">{arrival.tripId}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+            <div>
+                <h3 class="font-semibold mb-2">Downtown</h3>
+                {
+                    arrivalsSouth.length > 0 ? (
+                        <ul class="space-y-1">
+                            {arrivalsSouth.map((arrival) => (
+                                <li>
+                                    {arrival.line}{" "}
+                                    {arrival.departureTime.toString()}
+                                </li>
+                            ))}
+                        </ul>
                     ) : (
-                        <p class="text-gray-500">No upcoming arrivals</p>
-                    )}
-                </div>
-
-                <div class="border rounded-lg p-6">
-                    <h2 class="text-2xl font-bold mb-4">Southbound Arrivals</h2>
-                    {southArrivals.length > 0 ? (
-                        <table class="w-full">
-                            <thead>
-                                <tr class="text-left">
-                                    <th class="pb-2">Line</th>
-                                    <th class="pb-2">Arrival</th>
-                                    <th class="pb-2">Departure</th>
-                                    <th class="pb-2">Trip ID</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {southArrivals.map(arrival => {
-                                    const line = state.routes.find(r => r.route_id === arrival.line);
-                                    return (
-                                        <tr class="border-t">
-                                            <td class="py-2">
-                                                <span
-                                                    class="px-2 py-1 rounded"
-                                                    style={`background-color: #${line?.route_color || 'ffffff'}; color: #${line?.route_text_color || '000000'}`}
-                                                >
-                                                    {line?.route_short_name}
-                                                </span>
-                                            </td>
-                                            <td class="py-2">{arrival.arrivalTime.toString()}</td>
-                                            <td class="py-2">{arrival.departureTime.toString()}</td>
-                                            <td class="py-2">{arrival.tripId}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    ) : (
-                        <p class="text-gray-500">No upcoming arrivals</p>
-                    )}
-                </div>
+                        <p class="text-gray-500">No upcoming trains</p>
+                    )
+                }
             </div>
         </div>
     </div>
