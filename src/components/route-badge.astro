@@ -1,5 +1,9 @@
 ---
+import { Image } from "astro:assets";
 import { getRoute, type Route } from "../util/mta";
+import type { ImageMetadata } from "astro";
+
+const routeImages = import.meta.glob("../assets/routes/*.svg");
 
 type Props =
   | {
@@ -9,15 +13,20 @@ type Props =
       routeId: string;
     };
 
-const route =
-  "route" in Astro.props
-    ? Astro.props.route
-    : await getRoute(Astro.props.routeId);
+const routeId =
+  "routeId" in Astro.props ? Astro.props.routeId : Astro.props.route.routeId;
+const key = `../assets/routes/${routeId.toLowerCase()}.svg`;
+const routeImage = routeImages[key]?.() as Promise<{ default: ImageMetadata }>;
 ---
 
-<span
-  style={`background-color: #${route.routeColor || "ffffff"}; color: #${route.routeTextColor || "000000"}`}
-  class="px-2 aspect-square inline-block rounded-full"
->
-  {route.routeShortName}
-</span>
+{
+  routeImage ? (
+    <Image
+      src={routeImage}
+      alt={routeId}
+      class="h-[1.5em] w-[1.5em] inline-block align-bottom"
+    />
+  ) : (
+    routeId
+  )
+}

@@ -1,4 +1,5 @@
 ---
+import RouteBadge from "../components/route-badge.astro";
 import Layout from "../layouts/Layout.astro";
 import { getAllRoutes } from "../util/mta";
 
@@ -7,19 +8,24 @@ const routes = await getAllRoutes();
 
 <Layout>
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-4xl font-bold mb-8">MTA Train routes</h1>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <h1 class="text-4xl font-bold mb-8">MTA Train Routes</h1>
+        <div
+            class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] w-full"
+        >
             {
                 routes.map((route) => (
-                    <a href={`/route/${route.routeId}`} class="transition-shadow">
+                    <a
+                        href={`/route/${route.routeId}`}
+                        class="transition-shadow"
+                    >
                         <div
-                            class="p-4 rounded-lg"
-                            style={`background-color: #${route.routeColor || "ffffff"}; color: #${route.routeTextColor || "000000"}`}
+                            class="p-4 rounded-lg border border-dashed space-y-4"
+                            style={`border-color: #${route.routeColor || "ffffff"}`}
                         >
                             <h2 class="text-2xl font-bold">
-                                {route.routeShortName}
+                                <RouteBadge route={route} />
                             </h2>
-                            <p>{route.routeLongName}</p>
+                            <p class="text-sm">{route.routeLongName}</p>
                         </div>
                     </a>
                 ))
