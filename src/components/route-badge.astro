@@ -13,20 +13,23 @@ type Props =
       routeId: string;
     };
 
+const isTrmnl = Astro.request.headers.get('x-trmnl') === 'true';
 const routeId =
   "routeId" in Astro.props ? Astro.props.routeId : Astro.props.route.routeId;
 const key = `../assets/routes/${routeId.toLowerCase()}.svg`;
-const routeImage = routeImages[key]?.() as Promise<{ default: ImageMetadata }>;
+const routeImage = routeImages[key]?.() as Promise<{ default: ImageMetadata }> | undefined;
 ---
 
-{
-  routeImage ? (
-    <Image
-      src={routeImage}
-      alt={routeId}
-      class="h-[1.5em] w-[1.5em] inline-block align-bottom"
-    />
-  ) : (
-    routeId
-  )
-}
+<span class="bold">
+  {
+    (routeImage && !isTrmnl) ? (
+      <Image
+        src={routeImage}
+        alt={routeId}
+        class="h-[1.5em] w-[1.5em] inline-block align-bottom"
+      />
+    ) : (
+      routeId
+    )
+  }
+</span>

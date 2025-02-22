@@ -4,6 +4,9 @@ import Layout from "../layouts/Layout.astro";
 import { getAllRoutes } from "../util/mta";
 
 const routes = await getAllRoutes();
+
+const sortOrder = Astro.url
+
 ---
 
 <Layout>
@@ -19,7 +22,7 @@ const routes = await getAllRoutes();
                         class="transition-shadow"
                     >
                         <div
-                            class="p-4 rounded-lg border border-dashed space-y-4"
+                            class="p-4 rounded-lg border border-dashed space-y-4 h-full"
                             style={`border-color: #${route.routeColor || "ffffff"}`}
                         >
                             <h2 class="text-2xl font-bold">
