@@ -1,6 +1,20 @@
 import { z } from "astro/zod";
 import { Temporal } from "temporal-polyfill";
 
+async function trace<T>(label: string, inner: () => Promise<T>): Promise<T> {
+	const start = performance.now();
+	try {
+		const result = await inner();
+		const duration = performance.now() - start;
+		console.log(`${label} - ${duration}ms`);
+		return result;
+	} catch (error) {
+		const duration = performance.now() - start;
+		console.error(`${label} - ERR ${error} - ${duration}ms`);
+		throw error;
+	}
+}
+
 //
 // Global configuration: adjust this to point to your DO origin.
 //
@@ -92,7 +106,9 @@ export async function getRoute(routeId: string): Promise<Route> {
 }
 
 export async function getAllRoutes(): Promise<Route[]> {
-	const res = await fetch(`${BACKEND_ORIGIN}/routes`);
+	const res = await trace("getAllRoutes", () =>
+		fetch(`${BACKEND_ORIGIN}/routes`),
+	);
 	if (!res.ok)
 		throw new Error(`getAllroutes failed: ${res.status} ${res.statusText}`);
 	const json = await res.json();
@@ -105,10 +121,10 @@ export async function getAllRoutes(): Promise<Route[]> {
 export async function getStationsForRoute(routeId: string): Promise<Station[]> {
 	const url = new URL(`${BACKEND_ORIGIN}/stations`);
 	url.searchParams.set("routeId", routeId);
-	const res = await fetch(url.toString());
+	const res = await trace("getStationsForRoute", () => fetch(url.toString()));
 	if (!res.ok)
 		throw new Error(
-			`getStationsForroute failed: ${res.status} ${res.statusText}`,
+			`getStationsForRoute failed: ${res.status} ${res.statusText}`,
 		);
 	const json = await res.json();
 	return z.array(stationSchema).parse(json);
@@ -122,7 +138,7 @@ export async function getStation(
 ): Promise<Station | undefined> {
 	const url = new URL(`${BACKEND_ORIGIN}/station`);
 	url.searchParams.set("stationId", stationId);
-	const res = await fetch(url.toString());
+	const res = await trace("getStation", () => fetch(url.toString()));
 	if (res.status === 404) return undefined;
 	if (!res.ok)
 		throw new Error(`getStation failed: ${res.status} ${res.statusText}`);
@@ -144,7 +160,7 @@ export async function getUpcomingArrivals(
 	url.searchParams.set("stationId", stationId);
 	if (routeId) url.searchParams.set("routeId", routeId);
 	url.searchParams.set("limit", limit.toString());
-	const res = await fetch(url.toString());
+	const res = await trace("getUpcomingArrivals", () => fetch(url.toString()));
 	if (!res.ok)
 		throw new Error(
 			`getUpcomingArrivals failed: ${res.status} ${res.statusText}`,
