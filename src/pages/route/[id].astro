@@ -1,33 +1,16 @@
 ---
 import ArrivalList from "../../components/arrival-list.astro";
 import Layout from "../../layouts/Layout.astro";
-import type { StopTime } from "../../util/mta";
-import {
-    getAllRoutes,
-    getStationsForRoute,
-    getUpcomingArrivals,
-    type Station,
-} from "../../util/mta";
+import { getRoute } from "../../util/mta";
 
 const { id: routeId } = Astro.params;
 if (!routeId) throw new Error("impossible");
 
-const routes = await getAllRoutes();
-const route = routes.find((r) => r.routeId === routeId);
-if (!route) return Astro.redirect("/404");
+const routeWithStations = await getRoute(routeId, true);
+if (!routeWithStations) return Astro.redirect("/404");
 
-const stations = await getStationsForRoute(routeId);
-
-const stationsWithArrivals = await Promise.all(
-    stations
-        .filter((s) => !s.parentStation)
-        .map(async (station) => {
-            let arrivals = await getUpcomingArrivals(station.stopId, routeId, 6);
-            arrivals = arrivals.filter((a) => a.route === route.routeId);
-
-            return { station, arrivals };
-        }),
-);
+const route = routeWithStations.route;
+const stationsWithArrivals = routeWithStations.stations;
 ---
 
 <Layout>
@@ -47,11 +30,11 @@ const stationsWithArrivals = await Promise.all(
 
         <div class="grid gap-8">
             {
-                stationsWithArrivals.map(({ station, arrivals }) => {
-                    const arrivalsNorth = arrivals.filter(
+                stationsWithArrivals.map(({ upcomingArrivals, ...station }) => {
+                    const arrivalsNorth = upcomingArrivals.filter(
                         (a) => a.stopId === station.stopId + "N",
                     );
-                    const arrivalsSouth = arrivals.filter(
+                    const arrivalsSouth = upcomingArrivals.filter(
                         (a) => a.stopId === station.stopId + "S",
                     );
 

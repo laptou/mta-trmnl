@@ -97,20 +97,60 @@ const calendarDateEntrySchema = z.object({
 });
 export type CalendarDateEntry = z.infer<typeof calendarDateEntrySchema>;
 
-export async function getRoute(routeId: string): Promise<Route> {
-	const res = await fetch(`${BACKEND_ORIGIN}/route?routeId=${routeId}`);
+// Expanded station schema with upcoming arrivals
+const expandedStationSchema = stationSchema.extend({
+	upcomingArrivals: z.array(stopTimeSchema),
+});
+
+// Expanded route schema
+const expandedRouteSchema = z.object({
+	route: routeSchema,
+	stations: z.array(expandedStationSchema),
+});
+
+export type ExpandedRoute = z.infer<typeof expandedRouteSchema>;
+export type ExpandedStation = z.infer<typeof expandedStationSchema>;
+
+/**
+ * Get details about a specific route, optionally including all stations and upcoming arrivals.
+ *
+ *
+ */
+export async function getRoute(
+	routeId: string,
+	expanded: true,
+): Promise<ExpandedRoute>;
+export async function getRoute(
+	routeId: string,
+	expanded: false,
+): Promise<Route>;
+export async function getRoute(
+	routeId: string,
+	expanded = false,
+): Promise<Route | ExpandedRoute> {
+	const url = new URL(`${BACKEND_ORIGIN}/route`);
+	url.searchParams.set("routeId", routeId);
+	if (expanded) {
+		url.searchParams.set("expanded", "true");
+	}
+
+	const res = await trace("getRoute", () => fetch(url.toString()));
 	if (!res.ok)
-		throw new Error(`getAllroutes failed: ${res.status} ${res.statusText}`);
+		throw new Error(`getRoute failed: ${res.status} ${res.statusText}`);
+
 	const json = await res.json();
-	return routeSchema.parse(json);
+	return expanded ? expandedRouteSchema.parse(json) : routeSchema.parse(json);
 }
 
+/**
+ * Get a list of all available routes.
+ */
 export async function getAllRoutes(): Promise<Route[]> {
 	const res = await trace("getAllRoutes", () =>
 		fetch(`${BACKEND_ORIGIN}/routes`),
 	);
 	if (!res.ok)
-		throw new Error(`getAllroutes failed: ${res.status} ${res.statusText}`);
+		throw new Error(`getAllRoutes failed: ${res.status} ${res.statusText}`);
 	const json = await res.json();
 	return z.array(routeSchema).parse(json);
 }
@@ -132,39 +172,48 @@ export async function getStationsForRoute(routeId: string): Promise<Station[]> {
 
 /**
  * Returns station details from the DO.
+ * @param stationId Single station ID or comma-separated list of station IDs
  */
-export async function getStation(
-	stationId: string,
-): Promise<Station | undefined> {
+export async function getStations(
+	stationId: string | string[],
+): Promise<Station[]> {
 	const url = new URL(`${BACKEND_ORIGIN}/station`);
-	url.searchParams.set("stationId", stationId);
+	const stationIds = Array.isArray(stationId) ? stationId.join(",") : stationId;
+	url.searchParams.set("stationId", stationIds);
+
 	const res = await trace("getStation", () => fetch(url.toString()));
-	if (res.status === 404) return undefined;
 	if (!res.ok)
 		throw new Error(`getStation failed: ${res.status} ${res.statusText}`);
+
 	const json = await res.json();
-	return stationSchema.parse(json);
+	return z.array(stationSchema).parse(json);
 }
 
 /**
  * Returns upcoming train arrivals for a given station.
  * We assume the DO returns arrival/departure times as ISO strings in HH:mm:ss format.
  * We then use zod to validate and convert these values into Temporal.PlainTime.
+ *
+ * @param stationId The ID of the station
+ * @param routeId Optional filter for specific route
+ * @param limit Maximum number of arrivals to return (default: 10, max: 15)
  */
 export async function getUpcomingArrivals(
 	stationId: string,
-	routeId: string | undefined = undefined,
+	routeId?: string,
 	limit = 10,
 ): Promise<StopTime[]> {
 	const url = new URL(`${BACKEND_ORIGIN}/arrivals`);
 	url.searchParams.set("stationId", stationId);
 	if (routeId) url.searchParams.set("routeId", routeId);
-	url.searchParams.set("limit", limit.toString());
+	url.searchParams.set("limit", Math.min(limit, 15).toString());
+
 	const res = await trace("getUpcomingArrivals", () => fetch(url.toString()));
 	if (!res.ok)
 		throw new Error(
 			`getUpcomingArrivals failed: ${res.status} ${res.statusText}`,
 		);
+
 	const json = await res.json();
 	return z.array(stopTimeSchema).parse(json);
 }

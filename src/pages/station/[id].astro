@@ -1,12 +1,14 @@
 ---
 import ArrivalList from "../../components/arrival-list.astro";
 import Layout from "../../layouts/Layout.astro";
-import { getStation, getUpcomingArrivals } from "../../util/mta";
+import { getStations, getUpcomingArrivals } from "../../util/mta";
 
 const { id: stationId } = Astro.params;
 if (!stationId) throw new Error("impossible");
 
-const station = await getStation(stationId);
+const stations = await getStations(stationId);
+if (!stations) return Astro.redirect("/404");
+const station = stations[0];
 if (!station) return Astro.redirect("/404");
 
 const arrivals = await getUpcomingArrivals(station.stopId);
