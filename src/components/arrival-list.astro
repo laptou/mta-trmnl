@@ -23,6 +23,10 @@ const fmtTime = (time: Temporal.PlainTime) => {
 const durationFmt = new DurationFormat(undefined, {});
 
 const fmtDuration = (duration: Temporal.Duration) => {
+  if (duration.sign < 0) {
+    duration = duration.add("P1D");
+  }
+
   const rounded = duration.round({
     smallestUnit: "minute",
     roundingMode: "floor",
