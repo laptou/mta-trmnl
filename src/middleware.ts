@@ -1,6 +1,6 @@
 import { defineMiddleware } from "astro:middleware";
 
-export default defineMiddleware(async (event, next) => {
+export const onRequest = defineMiddleware(async (event, next) => {
     const start = performance.now();
     try {
         const response = await next();
